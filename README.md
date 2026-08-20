@@ -1,150 +1,292 @@
-# BHARAT IOT Pump Bridge
+# BHARAT IOT — Automatic Pump Controller
 
-A small Node.js/Express relay that lets your ESP32 pump dashboard be
-reached over the internet, hosted on Render.com.
+An ESP32-based automatic water pump controller for a single tank, with a built-in
+web dashboard, dry-run and level-fault protection, power monitoring, on-device
+history logging, and optional remote access from anywhere via a cloud bridge.
 
-**How it fits together:** the ESP32 can't be reached directly from the
-internet (home routers sit behind NAT). So instead, the ESP32 makes
-*outbound* check-ins to this bridge every few seconds with its status,
-and picks up any pending start/stop/reset/threshold command on that
-same call. This server stores the latest snapshot and serves a
-dashboard that lets you view status and queue commands from anywhere.
+The device runs completely standalone on its own WiFi hotspot — no internet or
+router required for local use. A small companion cloud service (this repo also
+includes it) lets you check on and control the pump from outside your home network.
 
-The device's own local dashboard at `192.168.4.1` is untouched and
-keeps working exactly as before on your home WiFi.
+<!--
+  Add real screenshots/photos here once available. Suggested layout:
+    docs/images/dashboard-home.png
+    docs/images/dashboard-report.png
+    docs/images/dashboard-plots.png
+    docs/images/hardware-enclosure.png
+    docs/images/hardware-pcb.png
+    docs/images/dwin-panel.png
+-->
 
-## 1. Deploy to Render
+## Screenshots & Hardware
 
-1. Push this folder to a GitHub repo (or use Render's "Deploy from
-   existing repo" / manual upload flow).
-2. In Render: **New → Web Service** → connect the repo.
-3. Settings:
-   - **Environment**: Node
-   - **Build command**: `npm install`
-   - **Start command**: `npm start`
-   - **Instance type**: Free is fine to start
-4. Add environment variables (Render dashboard → Environment):
-   - `DEVICE_TOKEN` — any long random string, e.g. generate one with
-     `openssl rand -hex 24`
-   - `DASHBOARD_TOKEN` — a second, different long random string
-5. Deploy. Render gives you a URL like
-   `https://bharat-iot-pump-bridge.onrender.com`.
-6. Visit that URL — you should see the dashboard showing "Waiting for
-   device…" since the ESP32 hasn't been patched yet.
+| Web Dashboard | Hardware | DWIN HMI Panel |
+|:---:|:---:|:---:|
+| ![Dashboard](docs/images/dashboard-home.png) | ![Hardware](docs/images/hardware-enclosure.png) | ![DWIN Panel](docs/images/dwin-panel.png) |
 
-**Free tier note:** Render's free web services spin down after ~15
-minutes of no traffic and take a few seconds to wake back up on the
-next request. That's fine for a periodic check-in relay, just expect
-the dashboard to show briefly stale/offline data right after a period
-of inactivity. Paid tiers avoid the spin-down if that matters to you.
+> Replace the images above by adding your own files to `docs/images/` and updating
+> the paths, or delete rows/columns for anything you don't have photos of yet.
 
-## 2. Patch the firmware
+---
 
-Files in `firmware_patch/`:
+## Table of Contents
 
-- `cloud_bridge.ino` — add this as a **second tab** in the same sketch
-  folder as `BHARAT_IOT_pump_control_curve_9.ino` (Arduino IDE: the
-  `+` icon next to the existing tabs → New Tab → paste this in).
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Repository Structure](#repository-structure)
+- [Hardware](#hardware)
+- [Getting Started](#getting-started)
+  - [1. Firmware (ESP32)](#1-firmware-esp32)
+  - [2. Optional: Remote Access via Cloud Bridge](#2-optional-remote-access-via-cloud-bridge)
+  - [3. Optional: DWIN HMI Panel](#3-optional-dwin-hmi-panel)
+- [Web Dashboard](#web-dashboard)
+- [API Reference](#api-reference)
+- [Data Logging](#data-logging)
+- [Troubleshooting](#troubleshooting)
+- [Roadmap](#roadmap)
+- [License](#license)
 
-Edit the four constants at the top of `cloud_bridge.ino`:
+---
 
-```cpp
-const char* HOME_WIFI_SSID      = "YOUR_HOME_WIFI_NAME";
-const char* HOME_WIFI_PASSWORD  = "YOUR_HOME_WIFI_PASSWORD";
-const char* BRIDGE_HOST         = "your-app-name.onrender.com"; // your Render URL, no https://
-const char* BRIDGE_DEVICE_TOKEN = "..."; // must exactly match Render's DEVICE_TOKEN
+## Overview
+
+This project turns an ESP32 into a self-contained smart controller for a single
+water pump:
+
+- Automatically starts/stops the pump based on tank level.
+- Protects the pump from dry-running using a configurable current threshold
+  (via a PZEM004T power sensor).
+- Shows live status on an onboard OLED display and NeoPixel indicator.
+- Serves a full web dashboard directly from the device — no app, no cloud
+  account, no internet needed for local use.
+- Logs every pump cycle, fault, and power reading to flash storage (LittleFS)
+  so history survives reboots and power loss.
+- Can optionally "phone home" to a small cloud relay so you can check on and
+  control the pump when you're away from home.
+
+## Features
+
+- **Automatic + manual control** — start/stop the pump automatically, or
+  override manually from the dashboard or a physical button.
+- **Dry-run protection** — trips a fault if the pump draws less current than
+  expected (configurable threshold, with a saved "default" you can restore to).
+- **Level-fault protection** — reacts safely to level-sensor issues.
+- **Live power monitoring** — voltage, current, power, energy (kWh), frequency,
+  and power factor via a PZEM004T sensor.
+- **Onboard display** — SSD1306 OLED for at-a-glance status, plus a NeoPixel
+  status LED.
+- **Real-time clock** — DS3231 RTC (coin-cell backed) timestamps every event,
+  even across power loss.
+- **Persistent history logs** (LittleFS, survive reboot):
+  - `fulllog.csv` — one row per completed pump cycle (start/stop time, runtime,
+    energy used, average power factor, and why the cycle ended).
+  - `faultlog.csv` — every dry-run / level-sensor / boot-reset fault, tagged to
+    the cycle it happened in.
+  - `pzemlog.csv` — periodic power-sensor snapshots.
+  - Logs auto-trim to the most recent entries so flash usage stays bounded.
+- **Built-in web dashboard** — Home / Settings / Report / Plots tabs, served
+  directly from the firmware at `http://192.168.4.1/` over the device's own
+  WiFi access point.
+- **Remote access (optional)** — a lightweight Node.js "cloud bridge" relay
+  (deployable to Render or similar) mirrors device status, commands, and logs
+  so the same dashboard works from anywhere, without exposing your home
+  network.
+- **Optional DWIN HMI touch panel** — a physical touchscreen front panel for
+  local control without a phone/laptop. *(see [section below](#3-optional-dwin-hmi-panel))*
+
+## Architecture
+
+```
+┌─────────────────────────┐        home WiFi         ┌──────────────────────┐
+│   ESP32 Pump Controller │ ────────────────────────► │   Cloud Bridge (API) │
+│  (AP mode + Station)    │   check-in every ~4s       │   Node.js / Express   │
+│                          │ ◄──────────────────────── │   hosted on Render    │
+│  Local dashboard at      │      pending commands      │                       │
+│  192.168.4.1  (always    │                            │  Mirrors status,      │
+│  works, no internet)     │                            │  queues commands,     │
+└─────────────────────────┘                            │  mirrors CSV logs     │
+             ▲                                          └──────────┬───────────┘
+             │ direct WiFi connection                               │ HTTPS
+             │ (phone/laptop on the ESP32's AP)                     ▼
+             │                                          ┌──────────────────────┐
+             └──────────────────────────────────────────│   Remote Dashboard   │
+                                                          │  (same UI, served     │
+                                                          │  from the bridge)     │
+                                                          └──────────────────────┘
 ```
 
-Then add one line to the main sketch's `setup()`, right after the
-existing `WiFi.softAP(...)` block (around line 3322 — search for
-`"Dashboard:           http://"` to find the spot):
+- **Local mode** always works: connect to the ESP32's own WiFi network and open
+  its IP — the pump keeps running and logging even with zero internet access.
+- **Remote mode** is additive: the ESP32 also joins your home WiFi and checks in
+  with the cloud bridge, which relays status/commands/logs so the same
+  dashboard is reachable from outside your home network.
 
-```cpp
-bridge_setup();
+## Repository Structure
+
+```
+.
+├── BHARAT_IOT_pump_control_curve_9.ino   # Main firmware: pump control, sensors,
+│                                          # local web server, dashboard, logging
+├── cloud_bridge.ino                       # Companion firmware tab: joins home WiFi,
+│                                          # checks in with the cloud bridge, mirrors logs
+├── server.js                              # Cloud bridge relay server (Node/Express)
+├── public/
+│   └── index.html                         # Remote dashboard (ported from the
+│                                          # device's own local dashboard)
+└── docs/
+    └── images/                            # Screenshots & hardware photos (add your own)
 ```
 
-That's it — no other changes needed. The main sketch's `loop()` and
-`controlTask()` don't need to know the bridge exists; commands arrive
-as the same `webRequestStart`/`webRequestStop`/`webRequestReset` flags
-the physical button and local API already use.
+## Hardware
 
-Re-upload the sketch. On boot it will still create its local
-`PumpControl` hotspot *and* join your home WiFi in the background
-(`WIFI_AP_STA` mode) to reach the bridge.
+| Component | Purpose |
+|---|---|
+| ESP32 dev board | Main controller |
+| PZEM004T v3.0 | AC voltage/current/power/energy sensing (dry-run detection) |
+| DS3231 RTC + coin cell | Timestamping that survives power loss |
+| SSD1306 OLED (I2C) | Onboard status display |
+| Adafruit NeoPixel | Status indicator LED |
+| Relay / contactor | Pump switching |
+| Level sensor(s) | Tank-full / dry detection |
+| *(Optional)* DWIN HMI touch panel | Local touchscreen control, no phone needed |
 
-## 3. Use it
+> Add wiring diagrams / schematics here, or link to a `hardware/` folder if you
+> have KiCad/Eagle files, BOM, or enclosure photos.
 
-- Open your Render URL from anywhere.
-- Click "Save" under **Dashboard token** and paste the `DASHBOARD_TOKEN`
-  value once — it's stored in the browser and sent with every command.
-- Status updates every ~3 seconds; the Report/Plots tabs refresh their
-  cached logs every ~15 seconds. Commands are picked up by the device
-  on its next check-in (every ~4 seconds), so expect a few seconds of
-  latency — this isn't instant control, it's a periodic relay.
+## Getting Started
 
-## Dashboard design
+### 1. Firmware (ESP32)
 
-`public/index.html` is now a direct, full port of your firmware's own
-local dashboard — Home, Settings, **Report**, and **Plots**, same tank
-sight-glass gauge, hero status ring, fault lamps, electrical meters,
-CSV history tables, and canvas charts — reusing the exact same colors,
-layout, and element structure, just pointed at the bridge instead of
-the device directly. Two differences from the local version, both
-required because this dashboard is reachable from the internet and not
-just your home network:
+**Required Arduino libraries** (install via Library Manager):
 
-- **Commands are queued, not instant.** Start/stop/threshold/RTC/log
-  commands are picked up on the device's next check-in (a few seconds
-  later), so status text says "Queued — applies on next check-in"
-  instead of confirming instantly.
-- **A dashboard token gate.** A new "Bridge access" panel under
-  Settings holds the `DASHBOARD_TOKEN`, sent as an `Authorization:
-  Bearer …` header on every command. Viewing status/logs never needs
-  it; sending commands does.
+- `ESP Async WebServer`
+- `Async TCP`
+- `PZEM004Tv30`
+- `Adafruit NeoPixel`
+- `Adafruit SSD1306` + `Adafruit GFX`
+- `RTClib`
 
-The Report and Plots tabs work the same way as on the device: the
-bridge now also mirrors `/fulllog.csv`, `/faultlog.csv`, and
-`/pzemlog.csv`, uploaded by the firmware roughly every 20s (see
-`bridge_uploadLogs()` in `cloud_bridge.ino`) — small payloads, since
-the main sketch already auto-clears each log at 30 rows.
+(`LittleFS` ships with the ESP32 Arduino core — no separate install needed.)
 
-### Two optional firmware hooks
+**Steps:**
 
-`clearAllData`, triggered remotely, resets the three log files itself
-(pure LittleFS truncate, no main-sketch changes needed). Two smaller
-pieces of what the *local* clearAllData/alerts routes do aren't
-something `cloud_bridge.ino` can do on its own, because it doesn't
-have your main sketch's internal variable/function names:
+1. Open `BHARAT_IOT_pump_control_curve_9.ino` in the Arduino IDE.
+2. If you want remote access, also add `cloud_bridge.ino` as a second tab in the
+   same sketch folder (see [below](#2-optional-remote-access-via-cloud-bridge)).
+3. Set `AP_SSID` / `AP_PASSWORD` near the top of the main sketch to whatever
+   you'd like the device's own WiFi network to be called.
+4. Upload the sketch. The dashboard is compiled directly into the firmware —
+   there's no separate filesystem/data upload step.
+5. Connect your phone or laptop to the ESP32's WiFi network, then open
+   `http://192.168.4.1/` in a browser.
 
-- resetting the pump cycle counter and the "last full"/"last fault"
-  quick fields
-- persisting the phone-alerts on/off toggle so it survives a reload
+### 2. Optional: Remote Access via Cloud Bridge
 
-`cloud_bridge.ino` declares two `__attribute__((weak))` functions —
-`resetPumpCountersForClearAllData()` and
-`setAlertsEnabledForBridge(bool on)` — with harmless no-op defaults
-(they just print a reminder to Serial), so everything above still
-compiles and runs without touching the main sketch at all. If you want
-those two effects to fully apply when triggered remotely, add real
-(non-weak) definitions with those exact names to the main sketch, each
-doing the same thing the corresponding local `/api/...` route already
-does.
+To reach your pump's dashboard from outside your home network:
 
-## Scope / what this does NOT do
+1. **Deploy the relay server** (`server.js` + `public/`) somewhere reachable,
+   e.g. [Render](https://render.com):
+   - Set environment variables `DEVICE_TOKEN` and `DASHBOARD_TOKEN` to your own
+     secret values (these gate who can post device data and who can send
+     commands, respectively).
+2. **Configure the firmware side** — in `cloud_bridge.ino`, set:
+   - `HOME_WIFI_SSID` / `HOME_WIFI_PASSWORD` — your home WiFi credentials.
+   - `BRIDGE_HOST` — your deployed server's hostname (no `https://`, no
+     trailing slash).
+   - `BRIDGE_DEVICE_TOKEN` — must match `DEVICE_TOKEN` on the server.
+3. Re-upload the firmware. The device will keep serving its local dashboard as
+   before, and will also check in with the bridge roughly every few seconds.
+4. Open your deployed server's URL to reach the same dashboard from anywhere.
 
-- **State resets on Render restart/redeploy** — this is an in-memory
-  MVP. The device itself remains the source of truth for anything
-  that matters (thresholds, logs); the bridge only ever mirrors the
-  latest live snapshot, and the device re-uploads its logs on its next
-  cycle after any restart.
-- **No HTTPS cert management needed** — Render terminates TLS for you
-  automatically on the `.onrender.com` domain.
+> ⚠️ Treat `DEVICE_TOKEN`, `DASHBOARD_TOKEN`, and your WiFi password as
+> secrets — don't commit real values to source control.
 
-## Security notes
+### 3. Optional: DWIN HMI Panel
 
-- Treat `DEVICE_TOKEN` and `DASHBOARD_TOKEN` like passwords — anyone
-  with the dashboard token can start/stop your pump remotely.
-- Consider a custom domain + Render's built-in TLS if you want a
-  nicer URL than `*.onrender.com`.
-- If you ever suspect a token leaked, just change the Render env var
-  and the firmware constant together and redeploy/reflash.
+*(Fill in with your specific DWIN model, wiring, and firmware/project files.)*
+
+A DWIN touchscreen panel can be wired to the ESP32 (typically over UART) to
+give a local, always-on physical control panel — useful for control near the
+pump itself without needing a phone or laptop nearby.
+
+- **Model:** _add your DWIN model number here_
+- **Connection:** _e.g. UART TX/RX pins used_
+- **DWIN project file:** _link/path if included in this repo_
+- **What it shows/controls:** _e.g. pump status, start/stop, threshold_
+
+## Web Dashboard
+
+The dashboard (served locally by the firmware, and mirrored remotely by the
+cloud bridge) includes:
+
+- **Home** — live pump/level/fault status, manual start/stop, current readings.
+- **Settings** — dry-run threshold (live + saved default), RTC time sync,
+  phone-alerts toggle.
+- **Report** — downloadable/clearable history logs (`fulllog.csv`,
+  `faultlog.csv`, `pzemlog.csv`).
+- **Plots** — visualizations built from the logged data.
+
+## API Reference
+
+Exposed by the firmware locally (`http://192.168.4.1/…`) and mirrored by the
+cloud bridge:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET`  | `/status` | JSON snapshot of pump/level/fault/electrical state |
+| `POST` | `/api/start` | Request pump start (same rules as the physical button) |
+| `POST` | `/api/stop` | Request pump stop (always allowed — safety stop) |
+| `POST` | `/api/reset` | Clear a latched dry-run fault |
+| `POST` | `/api/setThreshold?value=A` | Set the *live* dry-run current threshold |
+| `POST` | `/api/setThresholdDefault?value=A` | Set the *saved default* threshold |
+| `POST` | `/api/applyThresholdDefault` | Restore live threshold from saved default |
+| `POST` | `/api/setTime?epoch=N` | Set the DS3231 RTC to Unix time `N` |
+| `POST` | `/api/clearLog?log=full\|fault\|pzem\|all` | Wipe a history log to just its header row |
+| `GET`  | `/fulllog.csv` | Download full pump-cycle log |
+| `GET`  | `/faultlog.csv` | Download fault log |
+| `GET`  | `/pzemlog.csv` | Download power-sensor log |
+
+Cloud-bridge-only endpoints (used internally by the device, not typically
+called directly): `POST /api/device/checkin`, `POST /api/device/logs`,
+`GET /api/status`, `GET /healthz`.
+
+## Data Logging
+
+All logs are stored on the ESP32's onboard flash (LittleFS), so they survive
+reboots and power loss:
+
+- `fulllog.csv` — cycle number, start time, stop time, runtime (s), energy
+  used (kWh), average power factor, and stop reason
+  (`TANK-FULL` / `MANUAL` / `DRY-FAULT` / `LEVEL-FAULT`).
+- `faultlog.csv` — every fault event, tagged with the cycle it occurred during.
+- `pzemlog.csv` — periodic power-sensor snapshots (roughly once a minute).
+
+Each log auto-trims to its most recent entries, so flash usage stays bounded
+without any manual maintenance — the "Clear log" buttons in the dashboard are
+only needed if you want to wipe a log sooner than that.
+
+## Troubleshooting
+
+- **"Sketch too big" / flash overflow when compiling** — switch
+  `Tools → Partition Scheme` to a no-OTA scheme with a larger app partition
+  (e.g. *Minimal SPIFFS* or *No OTA*), since this firmware doesn't use OTA
+  updates and only needs a small filesystem for logs/settings.
+- **No internet on your phone while connected to the pump's WiFi** — expected;
+  the ESP32's own hotspot has no internet uplink. This doesn't affect the
+  dashboard.
+- **Cloud dashboard shows "device offline"** — check that `BRIDGE_HOST` and
+  `BRIDGE_DEVICE_TOKEN` in `cloud_bridge.ino` match your deployed server, and
+  that the ESP32 successfully joined `HOME_WIFI_SSID`.
+
+## Roadmap
+
+- [ ] Add hardware schematics / BOM
+- [ ] Add DWIN panel project files and wiring diagram
+- [ ] Multi-tank support
+- [ ] Push notifications for faults
+
+## License
+
+_Add your chosen license here (e.g. MIT) and include a `LICENSE` file in the
+repo root._

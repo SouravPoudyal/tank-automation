@@ -58,10 +58,10 @@
 #include <LittleFS.h>
 
 // ---------------- EDIT THESE ----------------
-const char* HOME_WIFI_SSID     = "YOUR_HOME_WIFI_NAME";
-const char* HOME_WIFI_PASSWORD = "YOUR_HOME_WIFI_PASSWORD";
-const char* BRIDGE_HOST        = "your-app-name.onrender.com"; // no https://, no trailing slash
-const char* BRIDGE_DEVICE_TOKEN = "change-me-device-secret";   // must match Render's DEVICE_TOKEN
+const char* HOME_WIFI_SSID     = "BharatIoT2.4Ghz";
+const char* HOME_WIFI_PASSWORD = "Dream@connectivity123";
+const char* BRIDGE_HOST        = "tank-automation.onrender.com"; // no https://, no trailing slash
+const char* BRIDGE_DEVICE_TOKEN = "1cddd43806a38ea187e03a8c516ae694c8f64b68dcfa51cb";   // must match Render's DEVICE_TOKEN
 // ---------------------------------------------
 
 const unsigned long BRIDGE_INTERVAL_MS = 4000;
