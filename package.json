@@ -1,0 +1,16 @@
+{
+  "name": "bharat-iot-pump-bridge",
+  "version": "1.0.0",
+  "description": "Cloud relay/bridge for the BHARAT IOT ESP32 pump controller — lets the local dashboard be reached over the internet via Render.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

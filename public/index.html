@@ -1,0 +1,2073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pump Control — Live Panel</title>
+<style>
+  :root{
+    --bg-void:#0B0E10;
+    --panel:#161B1E;
+    --panel-raised:#1D2327;
+    --hairline:#2A3236;
+    --hairline-lit:#3A454B;
+    --text-primary:#E8EDEE;
+    --text-muted:#7C8A90;
+    --text-dim:#4C5559;
+
+    --run:#3AA0FF;
+    --run-dim:#1B3A52;
+    --idle:#35D07F;
+    --idle-dim:#1A3B2C;
+    --fault:#FF4444;
+    --fault-dim:#3A1D1D;
+    --amber:#FFB020;
+    --amber-dim:#3A2C10;
+    --lcd:#7CF7C4;
+
+    --font-display:'Space Grotesk', 'Trebuchet MS', sans-serif;
+    --font-data:'Share Tech Mono', ui-monospace, 'Consolas', monospace;
+  }
+
+  *{ box-sizing:border-box; }
+
+  html,body{
+    margin:0; padding:0;
+    background:
+      radial-gradient(ellipse at 50% -10%, #1a2024 0%, var(--bg-void) 55%);
+    color:var(--text-primary);
+    font-family:var(--font-display);
+    min-height:100vh;
+  }
+
+  body{
+    padding:28px 20px 60px;
+  }
+
+  .wrap{
+    max-width:1180px;
+    margin:0 auto;
+  }
+
+  /* ---------- Header ---------- */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:14px;
+    margin-bottom:22px;
+    padding-bottom:18px;
+    border-bottom:1px solid var(--hairline);
+  }
+
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+
+  .brand h1{
+    font-size:20px;
+    font-weight:700;
+    letter-spacing:0.02em;
+    margin:0;
+  }
+
+  .brand .tag{
+    font-family:var(--font-data);
+    font-size:11px;
+    letter-spacing:0.12em;
+    color:var(--text-muted);
+    text-transform:uppercase;
+  }
+
+  .status-cluster{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    font-family:var(--font-data);
+    font-size:12px;
+    color:var(--text-muted);
+  }
+
+  .link-dot{
+    display:inline-block;
+    width:8px; height:8px;
+    border-radius:50%;
+    background:var(--fault);
+    box-shadow:0 0 6px var(--fault);
+    margin-right:6px;
+    transition:background .3s, box-shadow .3s;
+  }
+  .link-dot.live{ background:var(--idle); box-shadow:0 0 6px var(--idle); }
+
+  .demo-pill{
+    display:none;
+    padding:3px 9px;
+    border:1px solid var(--amber);
+    color:var(--amber);
+    border-radius:20px;
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+  }
+  .demo-pill.show{ display:inline-block; }
+
+  /* ---------- Layout grid ---------- */
+  .grid{
+    display:grid;
+    grid-template-columns: 260px 1fr 300px;
+    gap:18px;
+    align-items:start;
+  }
+
+  @media (max-width: 980px){
+    .grid{ grid-template-columns: 1fr; }
+  }
+
+  .panel{
+    background:linear-gradient(180deg, var(--panel-raised), var(--panel));
+    border:1px solid var(--hairline);
+    border-radius:10px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 6px 18px rgba(0,0,0,0.35);
+    padding:18px;
+  }
+
+  .panel-label{
+    font-family:var(--font-data);
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--text-muted);
+    margin:0 0 14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+
+  /* ---------- Tank / sight-glass gauge ---------- */
+  .tank-card{ display:flex; flex-direction:column; align-items:center; }
+
+  .tank-svg-wrap{ position:relative; width:100%; display:flex; justify-content:center; }
+
+  .level-readout{
+    margin-top:12px;
+    text-align:center;
+  }
+  .level-readout .val{
+    font-family:var(--font-data);
+    font-size:22px;
+    letter-spacing:0.05em;
+  }
+  .level-readout .val.normal{ color:var(--run); }
+  .level-readout .val.low{ color:var(--amber); }
+  .level-readout .val.full{ color:var(--idle); }
+  .level-readout .val.invalid{ color:var(--fault); }
+
+  .float-legend{
+    margin-top:14px;
+    width:100%;
+    font-family:var(--font-data);
+    font-size:11px;
+    color:var(--text-muted);
+  }
+  .float-legend div{
+    display:flex; justify-content:space-between;
+    padding:6px 0;
+    border-top:1px solid var(--hairline);
+  }
+  .float-legend span.on{ color:var(--amber); }
+  .float-legend span.off{ color:var(--text-dim); }
+
+  /* ---------- Hero status ---------- */
+  .hero{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:18px;
+    padding:26px 18px 22px;
+  }
+
+  .ring{
+    width:180px; height:180px;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    border:3px solid var(--hairline);
+    position:relative;
+    transition:border-color .3s, box-shadow .3s;
+  }
+  .ring.run{ border-color:var(--run); box-shadow:0 0 26px -4px var(--run); }
+  .ring.idle{ border-color:var(--idle); box-shadow:0 0 20px -6px var(--idle); }
+  .ring.manual{ border-color:var(--amber); box-shadow:0 0 20px -6px var(--amber); }
+  .ring.fault{ border-color:var(--fault); animation:pulse-ring 0.9s infinite steps(2); }
+
+  @keyframes pulse-ring{
+    0%,49%{ box-shadow:0 0 30px -2px var(--fault); border-color:var(--fault); }
+    50%,100%{ box-shadow:0 0 4px -2px var(--fault-dim); border-color:var(--hairline); }
+  }
+
+  .ring .icon{ width:70px; height:70px; }
+
+  .state-text{
+    font-family:var(--font-data);
+    font-size:26px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+  }
+  .state-text.run{ color:var(--run); }
+  .state-text.idle{ color:var(--idle); }
+  .state-text.manual{ color:var(--amber); }
+  .state-text.fault{ color:var(--fault); }
+
+  .state-sub{
+    font-size:12px;
+    color:var(--text-muted);
+    font-family:var(--font-data);
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+  }
+
+  .btn-row{ display:flex; gap:12px; margin-top:6px; flex-wrap:wrap; justify-content:center; }
+
+  button{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:13px;
+    letter-spacing:0.03em;
+    border-radius:7px;
+    padding:11px 20px;
+    border:1px solid var(--hairline-lit);
+    background:var(--panel-raised);
+    color:var(--text-primary);
+    cursor:pointer;
+    transition:transform .12s, box-shadow .2s, opacity .2s;
+  }
+  button:hover:not(:disabled){ transform:translateY(-1px); }
+  button:active:not(:disabled){ transform:translateY(0); }
+  button:focus-visible{ outline:2px solid var(--run); outline-offset:2px; }
+  button:disabled{ opacity:0.35; cursor:not-allowed; }
+
+  .btn-start{ border-color:var(--idle); color:var(--idle); }
+  .btn-start:hover:not(:disabled){ box-shadow:0 0 14px -4px var(--idle); }
+  .btn-stop{ border-color:var(--fault); color:var(--fault); }
+  .btn-stop:hover:not(:disabled){ box-shadow:0 0 14px -4px var(--fault); }
+  .btn-reset{ border-color:var(--amber); color:var(--amber); }
+  .btn-reset:hover:not(:disabled){ box-shadow:0 0 14px -4px var(--amber); }
+
+  /* ---------- Fault lamps ---------- */
+  .fault-panel{ margin-top:8px; }
+  .lamp-row{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 0;
+    border-top:1px solid var(--hairline);
+    font-size:13px;
+  }
+  .lamp-row:first-child{ border-top:none; }
+  .lamp{
+    width:10px; height:10px; border-radius:50%;
+    background:var(--text-dim);
+    flex-shrink:0;
+    transition:background .2s, box-shadow .2s;
+  }
+  .lamp.lit{ background:var(--fault); box-shadow:0 0 8px var(--fault); }
+  .lamp.lit-amber{ background:var(--amber); box-shadow:0 0 8px var(--amber); }
+
+  .stale .meter .m-value{ color:var(--text-dim) !important; text-shadow:none !important; }
+  .stale .level-readout .val{ opacity:0.45; }
+  .reconnect-banner{
+    display:none;
+    background:var(--amber-dim);
+    border:1px solid var(--amber);
+    color:var(--amber);
+    font-family:var(--font-data);
+    font-size:12px;
+    letter-spacing:0.05em;
+    text-align:center;
+    padding:8px 12px;
+    border-radius:8px;
+    margin-bottom:16px;
+  }
+  .reconnect-banner.show{ display:block; }
+
+  .fault-banner{
+    display:none;
+    background:var(--fault-dim);
+    border:1px solid var(--fault);
+    color:#FFD5D5;
+    font-family:var(--font-data);
+    font-size:12.5px;
+    letter-spacing:0.04em;
+    text-align:center;
+    padding:10px 12px;
+    border-radius:8px;
+    margin-bottom:16px;
+    animation:pulse-banner 1s infinite steps(2);
+  }
+  .fault-banner.show{ display:block; }
+  @keyframes pulse-banner{
+    0%,49%{ opacity:1; }
+    50%,100%{ opacity:0.55; }
+  }
+
+  .alert-btn{
+    font-family:var(--font-data);
+    font-size:11px;
+    padding:5px 10px;
+    border-radius:20px;
+    border:1px solid var(--hairline-lit);
+    background:transparent;
+    color:var(--text-muted);
+    cursor:pointer;
+  }
+  .alert-btn.on{ border-color:var(--idle); color:var(--idle); }
+  .lamp-label{ flex:1; }
+  .lamp-desc{ color:var(--text-muted); font-family:var(--font-data); font-size:11px; }
+
+  /* ---------- Electrical meter grid ---------- */
+  .meter-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+
+  .meter{
+    background:var(--bg-void);
+    border:1px solid var(--hairline);
+    border-radius:8px;
+    padding:12px 14px;
+  }
+
+  .meter .m-label{
+    font-family:var(--font-data);
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--text-muted);
+    margin-bottom:6px;
+  }
+
+  .meter .m-value{
+    font-family:var(--font-data);
+    font-size:24px;
+    color:var(--lcd);
+    text-shadow:0 0 8px rgba(124,247,196,0.35);
+    line-height:1;
+  }
+  .meter .m-value .unit{
+    font-size:13px;
+    color:var(--text-muted);
+    text-shadow:none;
+    margin-left:4px;
+  }
+
+  /* ---------- Terminal / event log ---------- */
+  .terminal{
+    margin-top:18px;
+    background:#0A0D0E;
+    border:1px solid var(--hairline);
+    border-radius:10px;
+    padding:14px 16px;
+    height:150px;
+    overflow-y:auto;
+    font-family:var(--font-data);
+    font-size:12px;
+    line-height:1.7;
+  }
+  .terminal .line{ white-space:pre-wrap; }
+  .terminal .ts{ color:var(--text-dim); }
+  .terminal .msg-info{ color:var(--text-muted); }
+  .terminal .msg-warn{ color:var(--amber); }
+  .terminal .msg-crit{ color:var(--fault); }
+  .terminal .msg-ok{ color:var(--idle); }
+
+  .terminal::-webkit-scrollbar{ width:8px; }
+  .terminal::-webkit-scrollbar-thumb{ background:var(--hairline-lit); border-radius:4px; }
+  .terminal::-webkit-scrollbar-track{ background:transparent; }
+
+  /* ---------- History / persisted logs ---------- */
+  .tab-row{ display:flex; gap:6px; flex-wrap:wrap; }
+  .tab-btn{
+    font-family:var(--font-data);
+    font-size:11px;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    padding:6px 12px;
+    border-radius:20px;
+    border:1px solid var(--hairline-lit);
+    background:transparent;
+    color:var(--text-muted);
+    cursor:pointer;
+  }
+  .tab-btn.on{ border-color:var(--run); color:var(--run); }
+
+  /* ---------- Home / Settings / Report section nav ---------- */
+  .section-nav{
+    display:flex;
+    gap:4px;
+    margin:18px 0 20px;
+    border-bottom:1px solid var(--hairline);
+  }
+  .nav-btn{
+    font-family:var(--font-display);
+    font-size:14px;
+    font-weight:600;
+    letter-spacing:0.01em;
+    padding:10px 20px 12px;
+    border:none;
+    border-bottom:2px solid transparent;
+    background:transparent;
+    color:var(--text-muted);
+    cursor:pointer;
+    transition:color .15s ease, border-color .15s ease;
+  }
+  .nav-btn:hover{ color:var(--text-primary); }
+  .nav-btn.on{ color:var(--run); border-bottom-color:var(--run); }
+
+  .view-section{ display:none; }
+  .view-section.active{ display:block; }
+
+  .settings-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+    gap:18px;
+  }
+  .readout-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    padding:5px 0;
+    font-size:13px;
+  }
+  .readout-row span:first-child{ color:var(--text-muted); }
+  .readout-row span:last-child{
+    font-family:var(--font-data);
+    color:var(--text-primary);
+  }
+
+  .log-meta{
+    font-family:var(--font-data);
+    font-size:11px;
+    color:var(--text-muted);
+    padding:2px 0 10px;
+  }
+  .log-meta.cached{ color:var(--amber); }
+
+  /* ---------- Plots ---------- */
+  .plot-wrap{ width:100%; height:220px; }
+  .plot-wrap canvas{ width:100%; height:100%; display:block; }
+  .plot-legend{ display:flex; flex-wrap:wrap; gap:14px; margin-top:10px; font-family:var(--font-data); font-size:12px; color:var(--text-primary); }
+  .plot-swatch{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:middle; }
+  .plot-legend-range{ color:var(--text-muted); }
+
+  .log-table-wrap{
+    max-height:260px;
+    overflow-y:auto;
+    overflow-x:auto;
+    border:1px solid var(--hairline);
+    border-radius:8px;
+  }
+  .log-table{
+    width:100%;
+    border-collapse:collapse;
+    font-family:var(--font-data);
+    font-size:12px;
+    white-space:nowrap;
+  }
+  .log-table thead th{
+    position:sticky; top:0;
+    background:var(--panel-raised);
+    text-align:left;
+    padding:8px 10px;
+    color:var(--text-muted);
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    border-bottom:1px solid var(--hairline);
+  }
+  .log-table tbody td{
+    padding:6px 10px;
+    border-top:1px solid var(--hairline);
+    color:var(--text-primary);
+  }
+  .log-table tbody tr:hover{ background:rgba(255,255,255,0.03); }
+  .log-empty{ padding:16px; text-align:center; color:var(--text-dim); font-family:var(--font-data); font-size:12px; white-space:normal; }
+
+  .footnote{
+    margin-top:22px;
+    text-align:center;
+    font-family:var(--font-data);
+    font-size:11px;
+    color:var(--text-dim);
+    letter-spacing:0.04em;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand">
+      <h1>Pump Control</h1>
+      <span class="tag">Live Panel · Tank 01</span>
+    </div>
+    <div class="status-cluster">
+      <button class="alert-btn" id="alertBtn">Enable phone alerts</button>
+      <span><span class="link-dot" id="linkDot"></span><span id="linkText">Connecting…</span></span>
+      <span id="clock">--:--:--</span>
+    </div>
+  </div>
+
+  <div class="fault-banner" id="faultBanner">⚠ FAULT ACTIVE — pump forced off</div>
+  <div class="reconnect-banner" id="reconnectBanner">Connection to device lost — retrying… showing last known values.</div>
+
+  <div class="section-nav" id="sectionNav">
+    <button class="nav-btn on" data-view="home">Home</button>
+    <button class="nav-btn" data-view="settings">Settings</button>
+    <button class="nav-btn" data-view="report">Report</button>
+    <button class="nav-btn" data-view="plots">Plots</button>
+  </div>
+
+  <!-- ================= HOME ================= -->
+  <div class="view-section active" id="view-home">
+  <div class="grid">
+
+    <!-- LEFT: Tank sight-glass gauge -->
+    <div class="panel tank-card">
+      <p class="panel-label">Tank Level</p>
+      <div class="tank-svg-wrap">
+        <svg width="120" height="220" viewBox="0 0 120 220" fill="none">
+          <!-- vessel outline -->
+          <rect x="14" y="10" width="92" height="196" rx="10" fill="#0A0D0E" stroke="#2A3236" stroke-width="2"/>
+          <!-- clipped water -->
+          <clipPath id="tankClip">
+            <rect x="16" y="12" width="88" height="192" rx="8"/>
+          </clipPath>
+          <g clip-path="url(#tankClip)">
+            <rect id="waterRect" x="16" y="140" width="88" height="64" fill="url(#waterGrad)"/>
+            <path id="wavePath" d="M16,140 Q30,132 44,140 T72,140 T100,140 T128,140 V210 H16 Z" fill="url(#waterGrad)" opacity="0.9">
+              <animateTransform id="waveAnim" attributeName="transform" type="translate"
+                from="0 0" to="-56 0" dur="2.6s" repeatCount="indefinite"/>
+            </path>
+          </g>
+          <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#3AA0FF" stop-opacity="0.85"/>
+            <stop offset="100%" stop-color="#1B5C8F" stop-opacity="0.85"/>
+          </linearGradient>
+
+          <!-- L1 marker (full, near top) -->
+          <g id="l1Marker">
+            <line x1="4" y1="46" x2="14" y2="46" stroke="#4C5559" stroke-width="2"/>
+            <circle cx="2" cy="46" r="3" fill="#4C5559" id="l1Dot"/>
+          </g>
+          <!-- L2 marker (low, lower down) -->
+          <g id="l2Marker">
+            <line x1="4" y1="150" x2="14" y2="150" stroke="#4C5559" stroke-width="2"/>
+            <circle cx="2" cy="150" r="3" fill="#4C5559" id="l2Dot"/>
+          </g>
+
+          <!-- vessel cap rivets, purely decorative -->
+          <circle cx="20" cy="16" r="1.6" fill="#2A3236"/>
+          <circle cx="100" cy="16" r="1.6" fill="#2A3236"/>
+          <circle cx="20" cy="200" r="1.6" fill="#2A3236"/>
+          <circle cx="100" cy="200" r="1.6" fill="#2A3236"/>
+        </svg>
+      </div>
+
+      <div class="level-readout">
+        <div class="val normal" id="levelVal">NORMAL</div>
+      </div>
+
+      <div class="float-legend">
+        <div><span>L1 · Full switch</span><span id="l1Text" class="off">OPEN</span></div>
+        <div><span>L2 · Low switch</span><span id="l2Text" class="off">OPEN</span></div>
+        <div><span>Last full</span><span id="lastFullText" class="off">—</span></div>
+        <div><span>Last fault</span><span id="lastFaultText" class="off">—</span></div>
+      </div>
+    </div>
+
+    <!-- CENTER: Hero status + controls -->
+    <div class="panel">
+      <p class="panel-label">Pump Status</p>
+      <div class="hero">
+        <div class="ring idle" id="statusRing">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" id="pumpIcon">
+            <path d="M12 2v4M12 2c-4 0-7 3.5-7 8a7 7 0 0014 0c0-4.5-3-8-7-8z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="13" r="3.4" stroke="currentColor" stroke-width="1.6"/>
+          </svg>
+        </div>
+        <div>
+          <div class="state-text idle" id="stateText">IDLE</div>
+          <div class="state-sub" id="stateSub" style="text-align:center; margin-top:4px;">Auto · Awaiting demand</div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-start" id="btnStart">Start pump</button>
+          <button class="btn-stop" id="btnStop">Stop pump</button>
+        </div>
+      </div>
+
+      <p class="panel-label" style="margin-top:4px;">Faults</p>
+      <div class="fault-panel">
+        <div class="lamp-row">
+          <span class="lamp" id="lampDry"></span>
+          <span class="lamp-label">Dry-run</span>
+          <span class="lamp-desc">latched</span>
+        </div>
+        <div class="lamp-row">
+          <span class="lamp" id="lampLevel"></span>
+          <span class="lamp-label">Level sensor</span>
+          <span class="lamp-desc">self-clears</span>
+        </div>
+        <div class="lamp-row">
+          <span class="lamp" id="lampBuzzer"></span>
+          <span class="lamp-label">Buzzer</span>
+          <span class="lamp-desc" id="buzzerDesc">silent</span>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start; margin-top:12px;">
+          <button class="btn-reset" id="btnReset" disabled>Reset dry-run fault</button>
+        </div>
+        <div class="readout-row">
+          <span>Live dry-run threshold</span>
+          <span id="liveThreshText">— A</span>
+        </div>
+        <div class="readout-row">
+          <span>Default dry-run threshold (saved)</span>
+          <span id="defaultThreshText">— A</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Electrical meters -->
+    <div class="panel">
+      <p class="panel-label">Electrical — readings</p>
+      <div class="meter-grid">
+        <div class="meter">
+          <div class="m-label">Voltage</div>
+          <div class="m-value"><span id="mVoltage">—</span><span class="unit">V</span></div>
+        </div>
+        <div class="meter">
+          <div class="m-label">Current</div>
+          <div class="m-value"><span id="mCurrent">—</span><span class="unit">A</span></div>
+        </div>
+        <div class="meter">
+          <div class="m-label">Power</div>
+          <div class="m-value"><span id="mPower">—</span><span class="unit">W</span></div>
+        </div>
+        <div class="meter">
+          <div class="m-label">Energy</div>
+          <div class="m-value"><span id="mEnergy">—</span><span class="unit">kWh</span></div>
+        </div>
+        <div class="meter">
+          <div class="m-label">Frequency</div>
+          <div class="m-value"><span id="mFreq">—</span><span class="unit">Hz</span></div>
+        </div>
+        <div class="meter">
+          <div class="m-label">Power factor</div>
+          <div class="m-value"><span id="mPf">—</span><span class="unit"></span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  </div>
+  <!-- ============= END HOME ============= -->
+
+  <!-- ================= SETTINGS ================= -->
+  <div class="view-section" id="view-settings">
+  <div class="settings-grid">
+
+    <div class="panel">
+      <p class="panel-label">Dry-run threshold</p>
+      <div class="fault-panel">
+        <div class="btn-row" style="justify-content:flex-start; align-items:center; gap:6px;">
+          <label for="threshInput" style="font-size:12px; opacity:0.8;">Live threshold (A)</label>
+          <input type="number" id="threshInput" min="0.01" max="30" step="0.01" style="width:70px;">
+          <button class="btn-reset" id="btnSetThresh">Set</button>
+          <span id="threshStatus" style="font-size:12px; opacity:0.7;"></span>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start; align-items:center; gap:6px; margin-top:10px;">
+          <label for="threshDefaultInput" style="font-size:12px; opacity:0.8;">Default value (A)</label>
+          <input type="number" id="threshDefaultInput" min="0.01" max="30" step="0.01" style="width:70px;">
+          <button class="btn-reset" id="btnSetThreshDefault">Save default</button>
+          <button class="btn-reset" id="btnApplyThreshDefault">Restore default</button>
+          <span id="threshDefaultStatus" style="font-size:12px; opacity:0.7;"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-label">Device Clock (RTC)</p>
+      <div class="fault-panel">
+        <div class="lamp-row">
+          <span class="lamp-label">Current device time</span>
+          <span class="lamp-desc" id="deviceTimeText">—</span>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap;">
+          <input type="datetime-local" id="rtcInput" step="1" style="font-family:var(--font-data); font-size:12px; background:var(--bg-void); color:var(--text-primary); border:1px solid var(--hairline-lit); border-radius:6px; padding:6px 8px;">
+          <button class="btn-reset" id="btnSetTime">Set</button>
+          <button class="btn-reset" id="btnSyncBrowserTime">Sync to browser</button>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start; margin-top:4px;">
+          <span id="rtcStatus" style="font-size:12px; opacity:0.7;"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-label">Bridge access</p>
+      <div class="fault-panel">
+        <div class="lamp-row">
+          <span class="lamp-label">Dashboard token</span>
+          <span class="lamp-desc">required to send commands, not to view status</span>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start; align-items:center; gap:6px; margin-top:10px;">
+          <input type="password" id="tokenInput" placeholder="paste dashboard token" style="font-family:var(--font-data); font-size:12px; background:var(--bg-void); color:var(--text-primary); border:1px solid var(--hairline-lit); border-radius:6px; padding:6px 8px; width:220px;">
+          <button class="btn-reset" id="btnSaveToken">Save</button>
+          <span id="tokenStatus" style="font-size:12px; opacity:0.7;"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="border-color:var(--fault-dim);">
+      <p class="panel-label" style="color:var(--fault);">Danger zone</p>
+      <div class="fault-panel">
+        <div class="lamp-row">
+          <span class="lamp-label">Clear all previous data</span>
+          <span class="lamp-desc">Wipes tank-full / fault / sensor history, the last-full and last-fault records, and the pump cycle counter. Dry-run threshold settings are kept.</span>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start; align-items:center; gap:6px; margin-top:10px;">
+          <button class="btn-stop" id="btnClearAllData">Clear all data</button>
+          <span id="clearAllStatus" style="font-size:12px; opacity:0.7;"></span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  </div>
+  <!-- ============= END SETTINGS ============= -->
+
+  <!-- ================= REPORT ================= -->
+  <div class="view-section" id="view-report">
+
+  <!-- Event log -->
+  <div class="panel" style="padding:0;">
+    <div style="padding:14px 16px 0;">
+      <p class="panel-label" style="margin-bottom:8px;">Event log</p>
+    </div>
+    <div class="terminal" id="terminal"></div>
+  </div>
+
+  <!-- History / persisted logs -->
+  <div class="panel" style="padding:0; margin-top:18px;">
+    <div style="padding:14px 16px 0; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+      <p class="panel-label" style="margin-bottom:8px;">History — logged on device, viewable offline (auto-clears after 30 entries)</p>
+      <div class="tab-row" id="logTabs">
+        <button class="tab-btn on" data-log="full">Tank full</button>
+        <button class="tab-btn" data-log="fault">Faults</button>
+        <button class="tab-btn" data-log="pzem">Sensor</button>
+      </div>
+    </div>
+    <div style="padding:0 16px;">
+      <div class="log-meta" id="logMeta">—</div>
+      <div class="btn-row" style="justify-content:flex-start; gap:8px; margin-bottom:10px;">
+        <button class="btn-reset" id="btnDownloadLog">Download CSV</button>
+        <button class="btn-stop" id="btnClearLog">Clear this log</button>
+        <span id="logActionStatus" style="font-size:12px; opacity:0.7;"></span>
+      </div>
+      <div class="log-table-wrap">
+        <table class="log-table">
+          <thead id="logHead"></thead>
+          <tbody id="logBody"><tr><td class="log-empty">No data yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div style="padding:10px 16px 14px; font-size:12px; opacity:0.8;">
+      Raw CSV on device:
+      <a href="/fulllog.csv" download style="color:inherit;">tank-full</a> ·
+      <a href="/faultlog.csv" download style="color:inherit;">faults</a> ·
+      <a href="/pzemlog.csv" download style="color:inherit;">sensor</a>
+    </div>
+  </div>
+
+  </div>
+  <!-- ============= END REPORT ============= -->
+
+  <!-- ================= PLOTS ================= -->
+  <!-- Drawn with plain <canvas> 2D calls, not a charting library - the
+       device is its own WiFi AP with no upstream internet, so a CDN
+       script (Chart.js etc.) simply wouldn't load here. Same "Tank full"
+       data as the Report tab's table, just charted instead. -->
+  <div class="view-section" id="view-plots">
+
+    <div class="panel" style="padding:0; margin-bottom:18px;">
+      <div style="padding:14px 16px 0; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <p class="panel-label" style="margin-bottom:8px;">Run time per cycle — most recent <span id="plotRuntimeCount">20</span> cycles (minutes)</p>
+      </div>
+      <div style="padding:0 16px 14px;">
+        <div class="log-meta" id="plotsMeta">—</div>
+        <div class="plot-wrap"><canvas id="plotRuntime"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel" style="padding:0;">
+      <div style="padding:14px 16px 0;">
+        <p class="panel-label" style="margin-bottom:8px;">Energy consumed per cycle — most recent <span id="plotEnergyCount">20</span> cycles (kWh)</p>
+      </div>
+      <div style="padding:0 16px 14px;">
+        <div class="plot-wrap"><canvas id="plotEnergy"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel" style="padding:0; margin-top:18px;">
+      <div style="padding:14px 16px 0;">
+        <p class="panel-label" style="margin-bottom:8px;">Power consumed over time (most recent <span id="sensorPlotCount">30</span> log points)</p>
+      </div>
+      <div style="padding:0 16px 14px;">
+        <div class="log-meta" id="sensorPlotMeta">—</div>
+        <div class="plot-wrap"><canvas id="plotSensorCombo"></canvas></div>
+        <!-- Real Y-axis (W) is drawn directly on the chart now that only
+             one series is plotted - the legend below just carries the
+             current value + min/max for quick reference. -->
+        <div class="plot-legend" id="sensorPlotLegend"></div>
+      </div>
+    </div>
+
+  </div>
+  <!-- ============= END PLOTS ============= -->
+
+  <div class="footnote">Polling <span id="endpointName">/status</span> · expects JSON: pump, manualStop, l1, l2, levelFault, dryFault, voltage, current, power, energy, frequency, pf, sensorPresent, rtcPresent, deviceTime, lastFull, lastFault</div>
+
+</div>
+
+<script>
+(function(){
+  const els = {
+    linkDot: document.getElementById('linkDot'),
+    linkText: document.getElementById('linkText'),
+    clock: document.getElementById('clock'),
+    ring: document.getElementById('statusRing'),
+    stateText: document.getElementById('stateText'),
+    stateSub: document.getElementById('stateSub'),
+    levelVal: document.getElementById('levelVal'),
+    l1Text: document.getElementById('l1Text'),
+    l2Text: document.getElementById('l2Text'),
+    lastFullText: document.getElementById('lastFullText'),
+    lastFaultText: document.getElementById('lastFaultText'),
+    l1Dot: document.getElementById('l1Dot'),
+    l2Dot: document.getElementById('l2Dot'),
+    waterRect: document.getElementById('waterRect'),
+    wavePath: document.getElementById('wavePath'),
+    lampDry: document.getElementById('lampDry'),
+    lampLevel: document.getElementById('lampLevel'),
+    lampBuzzer: document.getElementById('lampBuzzer'),
+    buzzerDesc: document.getElementById('buzzerDesc'),
+    reconnectBanner: document.getElementById('reconnectBanner'),
+    faultBanner: document.getElementById('faultBanner'),
+    alertBtn: document.getElementById('alertBtn'),
+    grid: document.querySelector('.grid'),
+    btnStart: document.getElementById('btnStart'),
+    btnStop: document.getElementById('btnStop'),
+    btnReset: document.getElementById('btnReset'),
+    threshInput: document.getElementById('threshInput'),
+    btnSetThresh: document.getElementById('btnSetThresh'),
+    threshStatus: document.getElementById('threshStatus'),
+    threshDefaultInput: document.getElementById('threshDefaultInput'),
+    btnSetThreshDefault: document.getElementById('btnSetThreshDefault'),
+    btnApplyThreshDefault: document.getElementById('btnApplyThreshDefault'),
+    threshDefaultStatus: document.getElementById('threshDefaultStatus'),
+    liveThreshText: document.getElementById('liveThreshText'),
+    defaultThreshText: document.getElementById('defaultThreshText'),
+    mVoltage: document.getElementById('mVoltage'),
+    mCurrent: document.getElementById('mCurrent'),
+    mPower: document.getElementById('mPower'),
+    mEnergy: document.getElementById('mEnergy'),
+    mFreq: document.getElementById('mFreq'),
+    mPf: document.getElementById('mPf'),
+    terminal: document.getElementById('terminal'),
+    deviceTimeText: document.getElementById('deviceTimeText'),
+    rtcInput: document.getElementById('rtcInput'),
+    btnSetTime: document.getElementById('btnSetTime'),
+    btnSyncBrowserTime: document.getElementById('btnSyncBrowserTime'),
+    rtcStatus: document.getElementById('rtcStatus'),
+    btnDownloadLog: document.getElementById('btnDownloadLog'),
+    btnClearLog: document.getElementById('btnClearLog'),
+    logActionStatus: document.getElementById('logActionStatus'),
+    btnClearAllData: document.getElementById('btnClearAllData'),
+    clearAllStatus: document.getElementById('clearAllStatus'),
+    tokenInput: document.getElementById('tokenInput'),
+    btnSaveToken: document.getElementById('btnSaveToken'),
+    tokenStatus: document.getElementById('tokenStatus'),
+  };
+
+  // ---- Dashboard token (bridge-only: the local AP dashboard doesn't ----
+  // ---- need this, but this instance is reachable from the internet, ----
+  // ---- so commands are rejected by the bridge without it) ----
+  const TOKEN_KEY = 'pumpctl.dashboardToken';
+  function getToken(){ try { return localStorage.getItem(TOKEN_KEY) || ''; } catch(e){ return ''; } }
+  function setToken(t){ try { localStorage.setItem(TOKEN_KEY, t); } catch(e){} }
+  function authHeaders(extra){
+    const h = Object.assign({}, extra || {});
+    const t = getToken();
+    if (t) h['Authorization'] = 'Bearer ' + t;
+    return h;
+  }
+  function refreshTokenStatus(){
+    els.tokenStatus.textContent = getToken() ? 'Token saved on this device' : 'No token saved yet — commands will be rejected';
+  }
+
+  let everConnectedLive = false; // becomes true the first time /status succeeds
+  let reconnecting = false;
+  let alertsEnabled = false;
+  let prev = {}; // previous rendered state, for edge-triggered log lines / alerts
+
+  // ---- Persisted history: last-known status + full log tables, cached in ----
+  // ---- localStorage so "Last full" / "Last fault" and the log tables    ----
+  // ---- below remain viewable even when the ESP32 isn't reachable at    ----
+  // ---- all (browser reopened away from the device's hotspot, etc).     ----
+  const STATUS_CACHE_KEY = 'pumpctl.lastStatus';
+  const LOG_CACHE_PREFIX = 'pumpctl.log.';
+  const logDefs = {
+    full:  { url: '/fulllog.csv',  cols: ['cycle_number', 'start', 'stop', 'runtime_s', 'energy_kwh', 'avg_pf', 'stop_reason'] },
+    fault: { url: '/faultlog.csv', cols: ['cycle_number', 'timestamp', 'fault_type'] },
+    pzem:  { url: '/pzemlog.csv',  cols: ['timestamp', 'voltage', 'current', 'power', 'energy', 'frequency', 'pf'] },
+  };
+  let activeLogTab = 'full';
+
+  // Fills in the "Last full" / "Last fault" quick fields from the previous
+  // session's cache the instant the page loads, before the first /status
+  // request has even had a chance to complete (or fail).
+  function hydrateStatusFromCache() {
+    try {
+      const raw = localStorage.getItem(STATUS_CACHE_KEY);
+      if (!raw) return;
+      const cached = JSON.parse(raw);
+      if (cached.lastFull) {
+        els.lastFullText.textContent = cached.lastFull + ' (cached)';
+        els.lastFullText.className = (cached.lastFull === 'never') ? 'off' : 'on';
+      }
+      if (cached.lastFault) {
+        els.lastFaultText.textContent = cached.lastFault + ' (cached)';
+        els.lastFaultText.className = (cached.lastFault === 'none') ? 'off' : 'on';
+      }
+      if (typeof cached.dryRunDefault === 'number') {
+        els.defaultThreshText.textContent = cached.dryRunDefault.toFixed(2) + ' A (cached)';
+      }
+      if (typeof cached.dryRunThreshold === 'number') {
+        els.liveThreshText.textContent = cached.dryRunThreshold.toFixed(2) + ' A (cached)';
+      }
+    } catch (e) {}
+  }
+
+  function parseCSV(text) {
+    // Split on \r\n *and* bare \n (the device's f.println() writes CRLF),
+    // and strip any trailing \r left on individual lines. Without this,
+    // the last column's header name (e.g. "stop_reason") comes through as
+    // "stop_reason\r", which no longer matches lookups like idx.stop_reason
+    // and silently leaves that column blank for every row.
+    const lines = text.split(/\r\n|\n|\r/).map(l => l.trim()).filter(l => l.length);
+    if (!lines.length) return { header: [], rows: [] };
+    const header = lines[0].split(',');
+    // A write torn by power loss mid-fprintf (the exact kind of event this
+    // controller is built to detect) can glue two fields together into one
+    // - e.g. "...,23.55,1852.0,..." losing its middle comma and becoming
+    // "...,23.551852.0,...". That shifts every later column and produces a
+    // number that reads as valid but is actually garbage (this is what
+    // sent the power chart's y-axis up into the millions from a single bad
+    // row). A wrong column count is a reliable signal the row is
+    // unreliable, so such rows are dropped outright rather than trusting
+    // whatever ends up misaligned into each field.
+    const rows = lines.slice(1).map(l => l.split(',')).filter(r => r.length === header.length);
+    return { header, rows };
+  }
+
+  // Friendlier column labels for logs that don't get the special "full"
+  // treatment below (fault log, sensor log).
+  const LOG_HEADER_LABELS = {
+    timestamp: 'Timestamp', fault_type: 'Fault type', event: 'Event',
+    voltage: 'Voltage (V)', current: 'Current (A)', power: 'Power (W)',
+    energy: 'Energy (kWh)', frequency: 'Frequency (Hz)', pf: 'PF',
+    cycle_number: 'Cycle #',
+  };
+
+  // "332" -> "5m 32s" (or "1h 02m 05s" for longer runs) - much easier to
+  // scan than raw seconds in a runtime column.
+  function formatDuration(totalSeconds) {
+    const s = parseInt(totalSeconds, 10);
+    if (isNaN(s) || s < 0) return totalSeconds;
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return h + 'h ' + String(m).padStart(2, '0') + 'm ' + String(sec).padStart(2, '0') + 's';
+    if (m > 0) return m + 'm ' + String(sec).padStart(2, '0') + 's';
+    return sec + 's';
+  }
+
+  // Builds the Tank-full/run-cycle table's display columns from the raw
+  // start,stop,runtime_s,energy_kwh,avg_pf,stop_reason CSV row - splitting
+  // the combined date+time "start" field into a separate Date-time column
+  // plus bare Start/Stop times (falls back gracefully to the raw string
+  // when there's no RTC, e.g. "uptime 1234s (no RTC)").
+  function buildFullLogView(parsed) {
+    const idx = {};
+    parsed.header.forEach((h, i) => { idx[h] = i; });
+    const header = ['Cycle #', 'Date-time', 'Start time', 'Stop time', 'Run time', 'Power consumed', 'Efficiency', 'Stopped by'];
+    const dtPattern = /^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})$/;
+
+    const rows = parsed.rows.map(r => {
+      const cycleDisplay = idx.cycle_number !== undefined ? r[idx.cycle_number] : '';
+      const startRaw = idx.start !== undefined ? (r[idx.start] || '') : '';
+      const stopRaw  = idx.stop  !== undefined ? (r[idx.stop]  || '') : '';
+      const sm = startRaw.match(dtPattern);
+      const em = stopRaw.match(dtPattern);
+
+      const dateDisplay = sm ? sm[1] : startRaw;
+      const startTimeDisplay = sm ? sm[2] : startRaw;
+      // If the run crossed midnight, show the stop's full string rather
+      // than a bare time, so it can't be misread as the same day.
+      const stopTimeDisplay = em ? (em[1] === dateDisplay ? em[2] : stopRaw) : stopRaw;
+
+      const runtimeDisplay = idx.runtime_s !== undefined ? formatDuration(r[idx.runtime_s]) : '';
+
+      const energyRaw = idx.energy_kwh !== undefined ? r[idx.energy_kwh] : '';
+      const energyNum = parseFloat(energyRaw);
+      const powerDisplay = isNaN(energyNum) ? energyRaw : energyNum.toFixed(3) + ' kWh';
+
+      const pfRaw = idx.avg_pf !== undefined ? r[idx.avg_pf] : '';
+      const pfNum = parseFloat(pfRaw);
+      const effDisplay = isNaN(pfNum) ? pfRaw : Math.round(pfNum * 100) + '%';
+
+      const stoppedBy = idx.stop_reason !== undefined ? r[idx.stop_reason] : '';
+
+      return [cycleDisplay, dateDisplay, startTimeDisplay, stopTimeDisplay, runtimeDisplay, powerDisplay, effDisplay, stoppedBy];
+    });
+
+    return { header, rows };
+  }
+
+  function saveLogCache(key, text) {
+    try { localStorage.setItem(LOG_CACHE_PREFIX + key, JSON.stringify({ text, ts: Date.now() })); }
+    catch (e) {}
+  }
+  function loadLogCache(key) {
+    try {
+      const raw = localStorage.getItem(LOG_CACHE_PREFIX + key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function renderLogTable(key, text, cachedTs) {
+    if (key !== activeLogTab) return; // only touch the DOM for the tab that's showing
+    const parsed = parseCSV(text);
+    const meta = document.getElementById('logMeta');
+    const head = document.getElementById('logHead');
+    const body = document.getElementById('logBody');
+
+    meta.className = 'log-meta' + (cachedTs ? ' cached' : '');
+    meta.textContent = cachedTs
+      ? ('Showing cached data — device unreachable, last synced ' + new Date(cachedTs).toLocaleString())
+      : ('Synced with device ' + new Date().toLocaleTimeString());
+
+    if (!parsed.rows.length) {
+      head.innerHTML = '';
+      body.innerHTML = '<tr><td class="log-empty">No records yet</td></tr>';
+      return;
+    }
+
+    let headerLabels, rows;
+    if (key === 'full' && parsed.header.includes('start') && parsed.header.includes('stop')) {
+      const view = buildFullLogView(parsed);
+      headerLabels = view.header;
+      rows = view.rows;
+    } else {
+      headerLabels = parsed.header.map(h => LOG_HEADER_LABELS[h] || h.replace(/_/g, ' '));
+      rows = parsed.rows;
+    }
+
+    head.innerHTML = '<tr>' + headerLabels.map(h => '<th>' + h + '</th>').join('') + '</tr>';
+    // Newest first; cap rows rendered so a large log doesn't choke the DOM.
+    const display = rows.slice(-200).reverse();
+    body.innerHTML = display.map(r => '<tr>' + r.map(c => '<td>' + c + '</td>').join('') + '</tr>').join('');
+  }
+
+  async function fetchLog(key) {
+    const def = logDefs[key];
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(def.url, { cache: 'no-store', signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      const text = await res.text();
+      saveLogCache(key, text);
+      renderLogTable(key, text, null);
+      return true;
+    } catch (e) {
+      clearTimeout(timer);
+      // Device unreachable - fall back to whatever we last cached for this
+      // tab, so the log stays viewable instead of just going blank.
+      const cached = loadLogCache(key);
+      if (cached) renderLogTable(key, cached.text, cached.ts);
+      else if (key === activeLogTab) {
+        document.getElementById('logMeta').textContent = 'No cached data yet — never synced with device';
+        document.getElementById('logBody').innerHTML = '<tr><td class="log-empty">Device unreachable</td></tr>';
+        document.getElementById('logHead').innerHTML = '';
+      }
+      return false;
+    }
+  }
+
+  // ---- Plots: runtime & energy per pump cycle, drawn on <canvas> ----
+  // No external charting library - see the comment on the Plots markup
+  // above for why (device has no internet access to fetch one from a CDN).
+  // Reuses the exact same /fulllog.csv data + localStorage cache as the
+  // Report tab's "Tank full" table, so opening Plots never costs an extra
+  // device request beyond what Report already does, and both stay in sync.
+  const PLOT_MAX_BARS = 20; // most recent N cycles shown, oldest-to-newest left-to-right
+
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function drawBarChart(canvas, labels, values, opts) {
+    opts = opts || {};
+    const barColor   = opts.color || cssVar('--run');
+    const valueFmt   = opts.valueFormatter || (v => v.toFixed(1));
+    // Backing-store scaled to devicePixelRatio so bars/text stay crisp on
+    // phone screens, while all drawing math below stays in CSS pixels.
+    const dpr  = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth  || 600;
+    const cssH = canvas.clientHeight || 220;
+    canvas.width  = cssW * dpr;
+    canvas.height = cssH * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    if (!values.length) {
+      ctx.fillStyle = cssVar('--text-muted');
+      ctx.font = '13px var(--font-data)';
+      ctx.fillText('No cycles logged yet', 10, cssH / 2);
+      return;
+    }
+
+    const padL = 6, padR = 6, padT = 18, padB = 26;
+    const chartW = cssW - padL - padR;
+    const chartH = cssH - padT - padB;
+    const maxVal = Math.max(...values, 0.0001);
+    const n = values.length;
+    const gap = n > 1 ? 6 : 0;
+    const barW = Math.max(3, (chartW - gap * (n - 1)) / n);
+
+    ctx.strokeStyle = cssVar('--hairline');
+    ctx.beginPath();
+    ctx.moveTo(padL, padT + chartH);
+    ctx.lineTo(padL + chartW, padT + chartH);
+    ctx.stroke();
+
+    ctx.font = '10px var(--font-data)';
+    ctx.textAlign = 'center';
+    for (let i = 0; i < n; i++) {
+      const x = padL + i * (barW + gap);
+      const h = Math.max(1, (values[i] / maxVal) * chartH);
+      const y = padT + chartH - h;
+
+      ctx.fillStyle = barColor;
+      ctx.fillRect(x, y, barW, h);
+
+      if (barW > 14) { // skip value labels once bars get too thin to hold one
+        ctx.fillStyle = cssVar('--text-muted');
+        ctx.fillText(valueFmt(values[i]), x + barW / 2, (y - 4 < padT) ? padT + 9 : y - 4);
+      }
+
+      ctx.fillStyle = cssVar('--text-dim');
+      ctx.fillText(labels[i], x + barW / 2, padT + chartH + 16);
+    }
+  }
+
+  function renderPlots(text, cachedTs) {
+    const parsed = parseCSV(text);
+    const meta = document.getElementById('plotsMeta');
+    meta.className = 'log-meta' + (cachedTs ? ' cached' : '');
+    meta.textContent = cachedTs
+      ? ('Showing cached data — device unreachable, last synced ' + new Date(cachedTs).toLocaleString())
+      : ('Synced with device ' + new Date().toLocaleTimeString());
+
+    const idx = {};
+    parsed.header.forEach((h, i) => { idx[h] = i; });
+    const rows = parsed.rows.slice(-PLOT_MAX_BARS);
+
+    document.getElementById('plotRuntimeCount').textContent = rows.length;
+    document.getElementById('plotEnergyCount').textContent  = rows.length;
+
+    const labels = rows.map(r => '#' + (idx.cycle_number !== undefined ? r[idx.cycle_number] : '?'));
+    const runtimeVals = rows.map(r => {
+      const v = idx.runtime_s !== undefined ? parseFloat(r[idx.runtime_s]) : NaN;
+      return isNaN(v) ? 0 : v / 60; // seconds -> minutes, easier to read on a chart
+    });
+    const energyVals = rows.map(r => {
+      const v = idx.energy_kwh !== undefined ? parseFloat(r[idx.energy_kwh]) : NaN;
+      return isNaN(v) ? 0 : v;
+    });
+
+    drawBarChart(document.getElementById('plotRuntime'), labels, runtimeVals, {
+      color: cssVar('--run'), valueFormatter: v => v.toFixed(1)
+    });
+    drawBarChart(document.getElementById('plotEnergy'), labels, energyVals, {
+      color: cssVar('--idle'), valueFormatter: v => v.toFixed(3)
+    });
+  }
+
+  // ---- Power line chart: Power (W) over time ----
+  // Styled to match the "Residential electricity usage" reference plot:
+  // a fixed 0-24 hour x-axis (not stretched to however many points we
+  // have), a shaded grey plot area with a white grid (matplotlib default
+  // look), and a smoothed curve rather than straight point-to-point
+  // segments. Each reading is placed at its actual time-of-day on that
+  // fixed axis, so the curve only appears where real data exists - if the
+  // earliest log entry is from, say, 06:15, the line simply starts at the
+  // x-position for hour 6.25 instead of being stretched to start at 0.
+  const SENSOR_PLOT_MAX_POINTS = 30; // matches MAX_LOG_ROWS on the device - the sensor log never holds more than this anyway
+  const Y_GRID_DIVS = 10; // horizontal gridlines, like the 0.1-step reference plot
+
+  // Fixed Y-axis top for the Power plot, in kW. IMPORTANT: this must match
+  // DWIN_CURVE_KW_SPAN in the firmware .ino (search for that name) - the
+  // DWIN panel's curve can't auto-scale to the data the way niceAxisMax()
+  // below does for everything else, so rather than have the browser
+  // auto-scale and drift out of sync with the panel's fixed range, the
+  // power plot uses this same fixed 0-POWER_PLOT_KW_MAX kW range instead,
+  // with POWER_PLOT_GRID_DIVS whole-kW gridlines (0/1/2/3/4/5) matching
+  // dwin_power_curve_bg_1024x600.png exactly. If you change this, change
+  // DWIN_CURVE_KW_SPAN and the background image's axis labels to match.
+  const POWER_PLOT_KW_MAX = 5;
+  const POWER_PLOT_GRID_DIVS = 5;
+
+  // Rounds up to a "nice" axis max (1/2/5 x10^n), same idea matplotlib uses
+  // for auto-scaled axes, so the y-axis reads like the reference chart's
+  // clean 0-1 scale rather than an arbitrary data-driven number.
+  function niceAxisMax(v) {
+    if (!isFinite(v) || v <= 0) return 1;
+    const mag = Math.pow(10, Math.floor(Math.log10(v)));
+    const norm = v / mag;
+    const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    return step * mag;
+  }
+
+  // Catmull-Rom -> cubic Bezier smoothing so the line curves through each
+  // point the way the reference plot's line does, instead of straight
+  // point-to-point segments.
+  function strokeSmoothPath(ctx, pxPts) {
+    if (pxPts.length < 2) {
+      if (pxPts.length === 1) { ctx.moveTo(pxPts[0].x - 2, pxPts[0].y); ctx.lineTo(pxPts[0].x + 2, pxPts[0].y); }
+      return;
+    }
+    ctx.moveTo(pxPts[0].x, pxPts[0].y);
+    for (let i = 0; i < pxPts.length - 1; i++) {
+      const p0 = pxPts[i - 1] || pxPts[i];
+      const p1 = pxPts[i];
+      const p2 = pxPts[i + 1];
+      const p3 = pxPts[i + 2] || p2;
+      const cp1x = p1.x + (p2.x - p0.x) / 6, cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6, cp2y = p2.y - (p3.y - p1.y) / 6;
+      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+    }
+  }
+
+  // points: [{x: hourOfDay (0-24, fractional), y: value}], sorted by x.
+  function drawTimeOfDayChart(canvas, points, opts) {
+    opts = opts || {};
+    const dpr  = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth  || 600;
+    const cssH = canvas.clientHeight || 220;
+    canvas.width  = cssW * dpr;
+    canvas.height = cssH * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    const xLabel = opts.xLabel || 'Time of day (Hour)';
+    const yLabel = opts.yLabel || '';
+    const lineColor = opts.color || cssVar('--run') || '#4863A0';
+    // Dark-theme plot colors, pulled from the same CSS variables as the
+    // rest of the dashboard so the chart matches its surroundings instead
+    // of sitting in a light matplotlib-style box.
+    const bgFill    = cssVar('--panel-raised') || '#1D2327';
+    const gridMinor = cssVar('--hairline')      || '#2A3236';
+    const gridBorder= cssVar('--hairline-lit')  || '#3A454B';
+    const textMain  = cssVar('--text-primary')  || '#E8EDEE';
+    const textDim   = cssVar('--text-muted')    || '#7C8A90';
+
+    ctx.font = '11px Arial, sans-serif';
+
+    // rawMax/yMax need to be known before the left margin can be sized,
+    // since the tick-label width (e.g. the 3-decimal "0.020"-style labels
+    // used at small kW-scale values) depends on it.
+    //
+    // If opts.yMax is given, use it as a FIXED axis top instead of
+    // auto-scaling to the data (opts.yGridDivs/opts.yDecimals can come
+    // along with it) - this is how the Power plot stays pinned to the
+    // exact same 0-POWER_PLOT_KW_MAX kW range as the DWIN panel's curve,
+    // rather than drifting to whatever niceAxisMax() picks for the data
+    // currently on screen.
+    let rawMax = points.length ? Math.max(...points.map(p => p.y)) : 1;
+    const yMax = opts.yMax != null ? opts.yMax : niceAxisMax(rawMax * 1.08);
+    const yMin = 0;
+    const yGridDivs = opts.yGridDivs || Y_GRID_DIVS;
+    const yDecimals = opts.yDecimals != null ? opts.yDecimals
+      : (yMax < 1 ? 3 : yMax < 10 ? 2 : yMax < 100 ? 1 : 0);
+
+    // Measure the widest tick label so padL always leaves room for it PLUS
+    // the rotated axis title. A fixed padL=42 was too narrow once tick
+    // labels got as wide as "0.020" (3 decimals), so the "Power (kW)"
+    // title and the axis numbers ended up drawn on top of each other.
+    ctx.font = '10px Arial, sans-serif';
+    let maxTickLabelWidth = 0;
+    for (let i = 0; i <= yGridDivs; i++) {
+      const v = yMin + (yMax - yMin) * i / yGridDivs;
+      const w = ctx.measureText(v.toFixed(yDecimals)).width;
+      if (w > maxTickLabelWidth) maxTickLabelWidth = w;
+    }
+    const yTitleReserve = yLabel ? 16 : 0; // width reserved for the rotated axis title
+    const padL = Math.max(42, yTitleReserve + maxTickLabelWidth + 14);
+    const padR = 10, padT = 8, padB = 34;
+    const chartW = cssW - padL - padR;
+    const chartH = cssH - padT - padB;
+
+    // Fixed x-domain: a full day, 0-24h - matches the reference plot exactly
+    // rather than stretching to whatever span of data happens to be logged.
+    const xMin = 0, xMax = 24;
+    const xToPx = h => padL + ((h - xMin) / (xMax - xMin)) * chartW;
+
+    const yToPx = v => padT + chartH - ((v - yMin) / (yMax - yMin || 1)) * chartH;
+
+    if (!points.length) {
+      ctx.fillStyle = textDim;
+      ctx.font = '13px var(--font-data)';
+      ctx.fillText('No sensor readings logged yet', 10, cssH / 2);
+      return;
+    }
+
+    // Shaded plot area, dark to match the dashboard.
+    ctx.fillStyle = bgFill;
+    ctx.fillRect(padL, padT, chartW, chartH);
+
+    // Gridlines: vertical on every hour, horizontal at each y-division -
+    // every unit gets its own line and label, none skipped.
+    ctx.strokeStyle = gridMinor;
+    ctx.lineWidth = 1;
+    for (let h = 0; h <= 24; h++) {
+      const x = Math.round(xToPx(h)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + chartH); ctx.stroke();
+    }
+    for (let i = 0; i <= yGridDivs; i++) {
+      const y = Math.round(yToPx(yMin + (yMax - yMin) * i / yGridDivs)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
+    }
+
+    // Border around the plot area, brighter than the gridlines so it reads as an axis.
+    ctx.strokeStyle = gridBorder;
+    ctx.strokeRect(padL, padT, chartW, chartH);
+
+    // Axis tick labels - every hour on x, every division on y, all legible
+    // against the dark background.
+    ctx.fillStyle = textMain;
+    ctx.font = '10px Arial, sans-serif';
+    ctx.textBaseline = 'top';
+    for (let h = 0; h <= 24; h++) {
+      ctx.textAlign = (h === 0) ? 'left' : (h === 24) ? 'right' : 'center';
+      ctx.fillText(String(h), xToPx(h), padT + chartH + 6);
+    }
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i <= yGridDivs; i++) {
+      const v = yMin + (yMax - yMin) * i / yGridDivs;
+      ctx.fillText(v.toFixed(yDecimals), padL - 6, yToPx(v));
+    }
+
+    // Axis titles.
+    ctx.fillStyle = textMain;
+    ctx.font = '11px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(xLabel, padL + chartW / 2, cssH - 4);
+    if (yLabel) {
+      ctx.save();
+      ctx.translate(12, padT + chartH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(yLabel, 0, 0);
+      ctx.restore();
+    }
+
+    // The smoothed curve, clipped to the plot area so bezier overshoot
+    // never spills past the grid border.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(padL, padT, chartW, chartH);
+    ctx.clip();
+    const pxPts = points.map(p => ({ x: xToPx(p.x), y: yToPx(p.y) }));
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    strokeSmoothPath(ctx, pxPts);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function renderSensorPlot(text, cachedTs) {
+    const parsed = parseCSV(text);
+    const meta = document.getElementById('sensorPlotMeta');
+    meta.className = 'log-meta' + (cachedTs ? ' cached' : '');
+    meta.textContent = cachedTs
+      ? ('Showing cached data — device unreachable, last synced ' + new Date(cachedTs).toLocaleString())
+      : ('Synced with device ' + new Date().toLocaleTimeString());
+
+    const idx = {};
+    parsed.header.forEach((h, i) => { idx[h] = i; });
+    const rows = parsed.rows.slice(-SENSOR_PLOT_MAX_POINTS);
+    document.getElementById('sensorPlotCount').textContent = rows.length;
+
+    // Turn each row into {x: hourOfDay, y: kilowatts}, reading the real
+    // HH:MM:SS off the end of the timestamp (RTC format is
+    // "YYYY-MM-DD HH:MM:SS"). Rows without a real clock time (the
+    // "uptime Ns (no RTC)" fallback) can't be placed on a time-of-day
+    // axis, so they're skipped rather than guessed at. Sorting by x means
+    // the curve is drawn left-to-right by time of day even if the log
+    // itself wrapped past midnight.
+    //
+    // PZEM_MAX_PLAUSIBLE_W is a hard sanity ceiling, checked against the
+    // raw watts value as logged (the PZEM-004T v3.0 is rated up to
+    // 100A @ ~230V, so ~23kW is already its physical limit) - this is a
+    // second line of defense against a corrupted row slipping through
+    // with the right column count but a garbage value, on top of
+    // parseCSV()'s column-count check above. The value is only converted
+    // to kW (÷1000) for display after passing this check.
+    const PZEM_MAX_PLAUSIBLE_W = 25000;
+    const powerColor = cssVar('--run') || '#3AA0FF';
+
+    // The x-axis below is a fixed "hour of day" (0-24) scale with no date
+    // component, so a row logged yesterday afternoon plots at the exact
+    // same x position as a row logged today at that hour - on a quiet
+    // system (change-triggered logging, heartbeat only every 15 min) the
+    // most recent 30 rows can easily still include yesterday's entries
+    // until today has accumulated enough of its own, and those old rows
+    // would otherwise appear as if they belonged to today's curve. Find
+    // "today" from the most recent logged row's own date (device RTC,
+    // not the browser clock) and drop anything logged on an earlier day.
+    let todayDate = null;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const tsRaw = idx.timestamp !== undefined ? (rows[i][idx.timestamp] || '') : '';
+      const dm = tsRaw.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (dm) { todayDate = dm[1]; break; }
+    }
+
+    const points = rows.map(r => {
+      const ts = idx.timestamp !== undefined ? (r[idx.timestamp] || '') : '';
+      const dm = ts.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (todayDate && dm && dm[1] !== todayDate) return null; // earlier calendar day - exclude
+      const m = ts.match(/(\d{2}):(\d{2}):(\d{2})$/);
+      if (!m) return null;
+      const hour = parseInt(m[1], 10) + parseInt(m[2], 10) / 60 + parseInt(m[3], 10) / 3600;
+      const vWatts = idx.power !== undefined ? parseFloat(r[idx.power]) : NaN;
+      if (isNaN(vWatts) || vWatts < 0 || vWatts > PZEM_MAX_PLAUSIBLE_W) return null;
+      return { x: hour, y: vWatts / 1000 };
+    }).filter(p => p).sort((a, b) => a.x - b.x);
+
+    drawTimeOfDayChart(document.getElementById('plotSensorCombo'), points, {
+      xLabel: 'Time of day (Hour)', yLabel: 'Power (kW)', color: powerColor,
+      yMax: POWER_PLOT_KW_MAX, yGridDivs: POWER_PLOT_GRID_DIVS, yDecimals: 0
+    });
+
+    const legend = document.getElementById('sensorPlotLegend');
+    if (!points.length) { legend.innerHTML = ''; return; }
+    const vals = points.map(p => p.y);
+    const last = vals[vals.length - 1];
+    const min = Math.min(...vals), max = Math.max(...vals);
+    // Enough decimal places to still show meaningful digits at kW scale
+    // for small loads (e.g. 0.020 kW), while staying readable for larger ones.
+    const legDecimals = max < 1 ? 3 : max < 10 ? 2 : 1;
+    legend.innerHTML =
+      '<span><span class="plot-swatch" style="background:' + powerColor + '"></span>' +
+      'Power: ' + last.toFixed(legDecimals) + ' kW' +
+      ' <span class="plot-legend-range">(' + min.toFixed(legDecimals) + '\u2013' + max.toFixed(legDecimals) + ')</span></span>';
+  }
+
+  function showPlotsTab() {
+    // Same cache key as Report's "Tank full" tab ('full') - deliberately
+    // shared rather than a separate 'plots' cache, since it's the same CSV.
+    const cached = loadLogCache('full');
+    if (cached) renderPlots(cached.text, cached.ts);
+    else {
+      document.getElementById('plotsMeta').textContent = 'No cached data yet — never synced with device';
+      drawBarChart(document.getElementById('plotRuntime'), [], []);
+      drawBarChart(document.getElementById('plotEnergy'), [], []);
+    }
+
+    const cachedPzem = loadLogCache('pzem');
+    if (cachedPzem) renderSensorPlot(cachedPzem.text, cachedPzem.ts);
+    else {
+      document.getElementById('sensorPlotMeta').textContent = 'No cached data yet — never synced with device';
+      drawTimeOfDayChart(document.getElementById('plotSensorCombo'), [], {
+        xLabel: 'Time of day (Hour)', yLabel: 'Power (kW)',
+        yMax: POWER_PLOT_KW_MAX, yGridDivs: POWER_PLOT_GRID_DIVS, yDecimals: 0
+      });
+      document.getElementById('sensorPlotLegend').innerHTML = '';
+    }
+
+    // fetchLog(key) updates the shared cache (and Report's table, if that
+    // happens to be the visible tab) regardless of which tab is active -
+    // re-read the cache afterwards rather than duplicating fetch logic.
+    fetchLog('full').then(() => {
+      const fresh = loadLogCache('full');
+      if (fresh) renderPlots(fresh.text, null);
+    });
+    fetchLog('pzem').then(() => {
+      const fresh = loadLogCache('pzem');
+      if (fresh) renderSensorPlot(fresh.text, null);
+    });
+  }
+
+  function showLogTab(key) {
+    activeLogTab = key;
+    document.querySelectorAll('#logTabs .tab-btn').forEach(b => b.classList.toggle('on', b.dataset.log === key));
+    // Show whatever's cached immediately (instant, works offline), then try
+    // to refresh from the device in the background.
+    const cached = loadLogCache(key);
+    if (cached) renderLogTable(key, cached.text, cached.ts);
+    else {
+      document.getElementById('logMeta').textContent = 'No cached data yet — never synced with device';
+      document.getElementById('logBody').innerHTML = '<tr><td class="log-empty">No records yet</td></tr>';
+      document.getElementById('logHead').innerHTML = '';
+    }
+    fetchLog(key);
+  }
+
+  function log(msg, kind){
+    kind = kind || 'info';
+    const now = new Date();
+    const ts = now.toTimeString().slice(0,8);
+    const div = document.createElement('div');
+    div.className = 'line';
+    div.innerHTML = '<span class="ts">' + ts + '</span>  <span class="msg-' + kind + '">' + msg + '</span>';
+    els.terminal.appendChild(div);
+    els.terminal.scrollTop = els.terminal.scrollHeight;
+    while(els.terminal.children.length > 80){ els.terminal.removeChild(els.terminal.firstChild); }
+  }
+
+  function fmt(n, d){ return (n===null || n===undefined || isNaN(n)) ? '--' : Number(n).toFixed(d); }
+
+  // ---- Phone alerts: notification + vibration + audible beep ----
+  // Honest limitation: this only fires while this tab is open (even if
+  // backgrounded/screen-locked on most phones) - a fully closed browser
+  // can't be woken by a plain LAN device without a real push server.
+  let audioCtx = null;
+  function beep(){
+    try{
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = 880;
+      gain.gain.value = 0.15;
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.25);
+    } catch(e){}
+  }
+
+  function fireAlert(title, body){
+    if (!alertsEnabled) return;
+    if ('vibrate' in navigator) navigator.vibrate([200,100,200,100,200]);
+    beep();
+    if (window.Notification && Notification.permission === 'granted'){
+      try{ new Notification(title, { body, tag:'pump-alert' }); } catch(e){}
+    }
+  }
+
+  document.getElementById('logTabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.tab-btn');
+    if (!btn) return;
+    showLogTab(btn.dataset.log);
+  });
+
+  // ---- Home / Settings / Report section nav ----
+  // Purely a client-side show/hide - no extra requests. Report's tables
+  // still only actually fetch on first visit (fetchLog is idempotent /
+  // cheap to call again), so switching tabs never triggers unnecessary
+  // load beyond what showLogTab already schedules on startup.
+  let activeMainView = 'home'; // tracked so the periodic refresh below knows whether Plots is on screen
+  document.getElementById('sectionNav').addEventListener('click', (e) => {
+    const btn = e.target.closest('.nav-btn');
+    if (!btn) return;
+    const view = btn.dataset.view;
+    activeMainView = view;
+    document.querySelectorAll('#sectionNav .nav-btn').forEach(b => b.classList.toggle('on', b === btn));
+    document.querySelectorAll('.view-section').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
+    if (view === 'plots') showPlotsTab();
+  });
+
+  hydrateStatusFromCache(); // fill Last full / Last fault from cache before any network activity
+
+  els.alertBtn.addEventListener('click', async () => {
+    const turningOn = !alertsEnabled;
+    if (turningOn && window.Notification && Notification.permission !== 'granted'){
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted'){
+        log('Notification permission denied - vibration/sound alerts will still work while this tab is open', 'warn');
+      }
+    }
+    alertsEnabled = turningOn;
+    els.alertBtn.classList.toggle('on', turningOn);
+    els.alertBtn.textContent = turningOn ? 'Alerts on' : 'Enable Phone Alerts';
+    beep();
+    log(turningOn ? 'Phone alerts enabled' : 'Phone alerts disabled', turningOn ? 'ok' : 'info');
+
+    // Push to firmware so this preference persists server-side across
+    // reloads/tabs (web dashboard only - not shown on the DWIN panel).
+    try {
+      await fetch('/api/alerts', {
+        method: 'POST',
+        headers: authHeaders({'Content-Type': 'application/x-www-form-urlencoded'}),
+        body: 'on=' + (turningOn ? '1' : '0')
+      });
+    } catch(e) { /* next poll will resync if this fails */ }
+  });
+
+  function render(s){
+    // Sync phone-alerts toggle from firmware - covers the case where it was
+    // switched on/off from the DWIN panel rather than this browser tab.
+    if (typeof s.alertsEnabled === 'boolean' && s.alertsEnabled !== alertsEnabled){
+      alertsEnabled = s.alertsEnabled;
+      els.alertBtn.classList.toggle('on', alertsEnabled);
+      els.alertBtn.textContent = alertsEnabled ? 'Alerts on' : 'Enable Phone Alerts';
+    }
+
+    // level text
+    let levelWord = 'NORMAL', levelClass='normal';
+    if (s.levelFault){ levelWord='INVALID'; levelClass='invalid'; }
+    else if (s.l1){ levelWord='FULL'; levelClass='full'; }
+    else if (!s.l2){ levelWord='LOW'; levelClass='low'; }
+    els.levelVal.textContent = levelWord;
+    els.levelVal.className = 'val ' + levelClass;
+
+    els.l1Text.textContent = s.l1 ? 'CLOSED' : 'OPEN';
+    els.l1Text.className = s.l1 ? 'on' : 'off';
+    els.l2Text.textContent = s.l2 ? 'CLOSED' : 'OPEN';
+    els.l2Text.className = s.l2 ? 'on' : 'off';
+    els.l1Dot.setAttribute('fill', s.l1 ? '#FFB020' : '#4C5559');
+    els.l2Dot.setAttribute('fill', s.l2 ? '#FFB020' : '#4C5559');
+
+    // last full / last fault timestamps, straight from the device's RTC
+    // (or "never"/"none" / uptime fallback if no RTC is fitted)
+    if (s.lastFull) {
+      els.lastFullText.textContent = s.lastFull;
+      els.lastFullText.className = (s.lastFull === 'never') ? 'off' : 'on';
+    }
+    if (s.lastFault) {
+      els.lastFaultText.textContent = s.lastFault;
+      els.lastFaultText.className = (s.lastFault === 'none') ? 'off' : 'on';
+    }
+    // Live RTC reading, so setting the clock can be visually confirmed.
+    // Don't stomp on it while the user has the picker focused/mid-edit.
+    if (s.deviceTime && document.activeElement !== els.rtcInput) {
+      els.deviceTimeText.textContent = s.deviceTime + (s.rtcPresent ? '' : ' (no RTC fitted)');
+    }
+
+    // Cache the quick-view fields so they're still visible on next page
+    // load even if the device is unreachable at that moment (see
+    // hydrateStatusFromCache below).
+    try {
+      localStorage.setItem(STATUS_CACHE_KEY, JSON.stringify({
+        lastFull: s.lastFull, lastFault: s.lastFault,
+        dryRunDefault: s.dryRunDefault, dryRunThreshold: s.dryRunThreshold,
+        ts: Date.now()
+      }));
+    } catch (e) {}
+
+    // water fill height: 0 = empty(bottom of L2-ish), 1 = full(top, at L1)
+    let frac = s.l1 ? 0.92 : (s.l2 ? 0.55 : 0.18);
+    const top = 12 + (192 * (1 - frac));
+    els.waterRect.setAttribute('y', top);
+    els.waterRect.setAttribute('height', 204 - top);
+    els.wavePath.setAttribute('d', `M16,${top} Q30,${top-8} 44,${top} T72,${top} T100,${top} T128,${top} V210 H16 Z`);
+
+    const anyFault = s.dryFault || s.levelFault;
+
+    // hero ring / state text
+    let mode;
+    if (anyFault) mode = 'fault';
+    else if (s.pump) mode = 'run';
+    else if (s.manualStop) mode = 'manual';
+    else mode = 'idle';
+
+    els.ring.className = 'ring ' + mode;
+    els.stateText.className = 'state-text ' + mode;
+
+    if (anyFault){
+      els.stateText.textContent = s.dryFault ? 'FAULT · DRY-RUN' : 'FAULT · SENSOR';
+      els.stateSub.textContent = 'Pump forced off';
+      els.faultBanner.classList.add('show');
+      els.faultBanner.textContent = '⚠ ' + (s.dryFault ? 'DRY-RUN FAULT' : 'LEVEL SENSOR FAULT') + ' — pump forced off';
+    } else if (s.pump){
+      els.stateText.textContent = 'RUNNING';
+      els.stateSub.textContent = 'Filling tank';
+      els.faultBanner.classList.remove('show');
+    } else if (s.manualStop){
+      els.stateText.textContent = 'STOPPED';
+      els.stateSub.textContent = 'Manual stop — won\'t auto-start';
+      els.faultBanner.classList.remove('show');
+    } else {
+      els.stateText.textContent = 'IDLE';
+      els.stateSub.textContent = s.l1 ? 'Tank full' : 'Auto · Awaiting demand';
+      els.faultBanner.classList.remove('show');
+    }
+
+    // fault lamps
+    els.lampDry.className = 'lamp' + (s.dryFault ? ' lit' : '');
+    els.lampLevel.className = 'lamp' + (s.levelFault ? ' lit' : '');
+    els.lampBuzzer.className = 'lamp' + (s.buzzing ? ' lit-amber' : '');
+    els.buzzerDesc.textContent = s.buzzing ? 'beeping' : 'silent';
+
+    // buttons
+    els.btnStart.disabled = s.pump || s.l1 || s.dryFault || s.levelFault;
+    els.btnStop.disabled = false; // always available - acts as an emergency stop even if the pump
+                                    // hasn't actually started yet (e.g. armed to auto-start at LOW level)
+    els.btnReset.disabled = !s.dryFault;
+    if (typeof s.dryRunThreshold === 'number' && document.activeElement !== els.threshInput) {
+      els.threshInput.value = s.dryRunThreshold.toFixed(2);
+    }
+    if (typeof s.dryRunDefault === 'number' && document.activeElement !== els.threshDefaultInput) {
+      els.threshDefaultInput.value = s.dryRunDefault.toFixed(2);
+    }
+    // Home screen read-only readouts - always kept in sync regardless of
+    // whether the Settings tab (where these are editable) is even open.
+    if (typeof s.dryRunThreshold === 'number') {
+      els.liveThreshText.textContent = s.dryRunThreshold.toFixed(2) + ' A';
+    }
+    if (typeof s.dryRunDefault === 'number') {
+      els.defaultThreshText.textContent = s.dryRunDefault.toFixed(2) + ' A';
+    }
+
+    // meters
+    if (s.sensorPresent){
+      els.mVoltage.textContent = fmt(s.voltage, 1);
+      els.mCurrent.textContent = fmt(s.current, 2);
+      els.mPower.textContent = fmt(s.power, 1);
+      els.mEnergy.textContent = fmt(s.energy, 2);
+      els.mFreq.textContent = fmt(s.frequency, 1);
+      els.mPf.textContent = fmt(s.pf, 2);
+    } else {
+      ['mVoltage','mCurrent','mPower','mEnergy','mFreq','mPf'].forEach(k => els[k].textContent = '--');
+    }
+
+    // edge-triggered log lines + phone alerts
+    if (prev.pump !== undefined){
+      if (s.pump && !prev.pump) log('PUMP STARTED', 'ok');
+      if (!s.pump && prev.pump) log('PUMP STOPPED', 'info');
+      if (s.dryFault && !prev.dryFault){
+        log('DRY-RUN FAULT LATCHED', 'crit');
+        fireAlert('Pump: Dry-run fault', 'No load current detected while pump was running. Pump stopped.');
+      }
+      if (!s.dryFault && prev.dryFault) log('Dry-run fault cleared', 'ok');
+      if (s.levelFault && !prev.levelFault){
+        log('LEVEL SENSOR FAULT — check L1/L2 wiring', 'warn');
+        fireAlert('Pump: Level sensor fault', 'L1/L2 float switch reading is inconsistent. Check wiring.');
+      }
+      if (!s.levelFault && prev.levelFault) log('Level sensor reading normalized', 'info');
+      if (s.l1 && !prev.l1 && !s.levelFault) log('TANK FULL — ' + (s.lastFull || ''), 'ok');
+    }
+    prev = s;
+  }
+
+  function setClock(){
+    els.clock.textContent = new Date().toTimeString().slice(0,8);
+  }
+
+  // ---- Live polling ----
+  const ENDPOINT = '/status';
+  const FETCH_TIMEOUT_MS = 2500;
+
+  async function pollLive(){
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try{
+      const res = await fetch(ENDPOINT, {cache:'no-store', signal: controller.signal});
+      clearTimeout(timer);
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      const data = await res.json();
+
+      if (!everConnectedLive){
+        everConnectedLive = true;
+        log('Connected to device', 'ok');
+      }
+      if (reconnecting){
+        reconnecting = false;
+        els.reconnectBanner.classList.remove('show');
+        els.grid.classList.remove('stale');
+        log('Connection restored', 'ok');
+      }
+      // "Live" here specifically means live pump readings (sensorPresent),
+      // matching the same definition used for VP_CONN_STATUS on the DWIN
+      // panel - not just "the ESP32 answered this HTTP request". A device
+      // that's online but has no PZEM connected still shows Reconnecting.
+      if (data.sensorPresent){
+        els.linkDot.classList.add('live');
+        els.linkText.textContent = 'Live';
+      } else {
+        els.linkDot.classList.remove('live');
+        els.linkText.textContent = 'Reconnecting…';
+      }
+      render(data);
+      return true;
+    } catch(e){
+      clearTimeout(timer);
+      return false;
+    }
+  }
+
+  // (no demo simulator - dashboard only ever shows real device data)
+
+  function bindButtons(){
+    async function post(path){
+      try{
+        const res = await fetch(path, {method:'POST', headers: authHeaders()});
+        if (!res.ok) throw new Error();
+      } catch(e){
+        log('Command failed to reach device — try again', 'warn');
+      }
+    }
+    els.btnStart.addEventListener('click', () => post('/api/start'));
+    els.btnStop.addEventListener('click', () => post('/api/stop'));
+    els.btnReset.addEventListener('click', () => post('/api/reset'));
+
+    els.btnSetThresh.addEventListener('click', async () => {
+      const v = parseFloat(els.threshInput.value);
+      if (isNaN(v) || v <= 0 || v >= 30) {
+        els.threshStatus.textContent = 'Invalid value';
+        return;
+      }
+      try {
+        const r = await fetch('/api/setThreshold?value=' + v, { method: 'POST', headers: authHeaders() });
+        const j = await r.json();
+        els.threshStatus.textContent = j.ok ? 'Queued — applies on next check-in' : ('Error: ' + (j.error || j.err || 'failed'));
+        log('Dry-run threshold set to ' + v.toFixed(2) + ' A', 'info');
+      } catch (e) {
+        els.threshStatus.textContent = 'Request failed';
+      }
+      setTimeout(() => { els.threshStatus.textContent = ''; }, 3000);
+    });
+
+    // ---- Dry-run DEFAULT value (kept apart from the live threshold above, ----
+    // ---- so there's always a known-good value to fall back to) ----
+    els.btnSetThreshDefault.addEventListener('click', async () => {
+      const v = parseFloat(els.threshDefaultInput.value);
+      if (isNaN(v) || v <= 0 || v >= 30) {
+        els.threshDefaultStatus.textContent = 'Invalid value';
+        return;
+      }
+      try {
+        const r = await fetch('/api/setThresholdDefault?value=' + v, { method: 'POST', headers: authHeaders() });
+        const j = await r.json();
+        els.threshDefaultStatus.textContent = j.ok ? 'Queued — applies on next check-in' : ('Error: ' + (j.error || j.err || 'failed'));
+        log('Dry-run default value set to ' + v.toFixed(2) + ' A', 'info');
+      } catch (e) {
+        els.threshDefaultStatus.textContent = 'Request failed';
+      }
+      setTimeout(() => { els.threshDefaultStatus.textContent = ''; }, 3000);
+    });
+
+    els.btnApplyThreshDefault.addEventListener('click', async () => {
+      try {
+        const r = await fetch('/api/applyThresholdDefault', { method: 'POST', headers: authHeaders() });
+        const j = await r.json();
+        if (j.ok) {
+          els.threshDefaultStatus.textContent = 'Queued — applies on next check-in';
+          log('Dry-run threshold restore-to-default queued', 'info');
+        } else {
+          els.threshDefaultStatus.textContent = 'Error: ' + (j.error || j.err || 'failed');
+        }
+      } catch (e) {
+        els.threshDefaultStatus.textContent = 'Request failed';
+      }
+      setTimeout(() => { els.threshDefaultStatus.textContent = ''; }, 3000);
+    });
+
+    // ---- Device clock (RTC) ----
+    // The DS3231 (and RTClib's DateTime(uint32_t)) has no timezone concept -
+    // it just stores whatever Y-M-D H:M:S digits fall out of standard UTC
+    // epoch math, and the dashboard prints those digits back out as-is.
+    // So instead of sending a true UTC epoch (which would silently store
+    // everything in UTC, offset from local time by the browser's timezone),
+    // shift the epoch by the browser's own UTC offset first - that makes
+    // the digits the device stores match the *local* wall clock shown on
+    // the picker / "Sync to browser" button.
+    function toDeviceEpoch(d){
+      return Math.floor(d.getTime() / 1000) - d.getTimezoneOffset() * 60;
+    }
+
+    async function setDeviceTime(epochSeconds){
+      els.rtcStatus.textContent = 'Queuing…';
+      try {
+        const r = await fetch('/api/setTime?epoch=' + epochSeconds, { method: 'POST', headers: authHeaders() });
+        const j = await r.json();
+        if (j.ok) {
+          els.rtcStatus.textContent = 'Queued — applies on next check-in';
+          log('Device RTC time set queued', 'ok');
+        } else {
+          els.rtcStatus.textContent = 'Error: ' + (j.error || j.err || 'failed');
+        }
+      } catch (e) {
+        els.rtcStatus.textContent = 'Bridge unreachable — clock not changed';
+      }
+      setTimeout(() => { els.rtcStatus.textContent = ''; }, 4000);
+    }
+
+    els.btnSetTime.addEventListener('click', () => {
+      const val = els.rtcInput.value; // "YYYY-MM-DDTHH:mm[:ss]", local time
+      if (!val) { els.rtcStatus.textContent = 'Pick a date/time first'; return; }
+      const d = new Date(val);
+      if (isNaN(d.getTime())) { els.rtcStatus.textContent = 'Invalid date/time'; return; }
+      setDeviceTime(toDeviceEpoch(d));
+    });
+
+    els.btnSyncBrowserTime.addEventListener('click', () => {
+      setDeviceTime(toDeviceEpoch(new Date()));
+    });
+
+    // ---- History log: download / clear ----
+    function downloadText(filename, text){
+      const blob = new Blob([text], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    els.btnDownloadLog.addEventListener('click', () => {
+      const cached = loadLogCache(activeLogTab);
+      if (!cached || !cached.text) {
+        els.logActionStatus.textContent = 'Nothing cached to download yet';
+        setTimeout(() => { els.logActionStatus.textContent = ''; }, 3000);
+        return;
+      }
+      downloadText(activeLogTab + 'log.csv', cached.text);
+      els.logActionStatus.textContent = 'Downloaded';
+      setTimeout(() => { els.logActionStatus.textContent = ''; }, 2500);
+    });
+
+    els.btnClearLog.addEventListener('click', async () => {
+      const label = { full: 'tank-full', fault: 'fault', pzem: 'sensor' }[activeLogTab];
+      const proceed = confirm(
+        'Clear the ' + label + ' log on the device? This cannot be undone.\n\n' +
+        'Tip: click "Download CSV" first if you want to keep a copy.'
+      );
+      if (!proceed) return;
+      els.logActionStatus.textContent = 'Queuing…';
+      try {
+        const r = await fetch('/api/clearLog?log=' + activeLogTab, { method: 'POST', headers: authHeaders() });
+        const j = await r.json();
+        if (j.ok) {
+          try { localStorage.removeItem(LOG_CACHE_PREFIX + activeLogTab); } catch (e) {}
+          log('Clear ' + label + ' log queued — applies on next check-in', 'ok');
+          els.logActionStatus.textContent = 'Queued — applies on next check-in';
+          setTimeout(() => fetchLog(activeLogTab), 6000);
+        } else {
+          els.logActionStatus.textContent = 'Error: ' + (j.error || j.err || 'failed');
+        }
+      } catch (e) {
+        els.logActionStatus.textContent = 'Bridge unreachable — log not cleared';
+      }
+      setTimeout(() => { els.logActionStatus.textContent = ''; }, 3500);
+    });
+
+    els.btnClearAllData.addEventListener('click', async () => {
+      const proceed = confirm(
+        'Clear ALL previous data on the device?\n\n' +
+        'This wipes the tank-full, fault, and sensor history logs, the last-full ' +
+        'and last-fault records, and resets the pump cycle counter back to 0.\n\n' +
+        'Your dry-run threshold settings are NOT affected.\n\n' +
+        'This cannot be undone - download any CSVs you want to keep first.'
+      );
+      if (!proceed) return;
+      els.clearAllStatus.textContent = 'Queuing…';
+      try {
+        const r = await fetch('/api/clearAllData', { method: 'POST', headers: authHeaders() });
+        const j = await r.json();
+        if (j.ok) {
+          try {
+            localStorage.removeItem(STATUS_CACHE_KEY);
+            localStorage.removeItem(LOG_CACHE_PREFIX + 'full');
+            localStorage.removeItem(LOG_CACHE_PREFIX + 'fault');
+            localStorage.removeItem(LOG_CACHE_PREFIX + 'pzem');
+          } catch (e) {}
+          log('Clear-all-data queued — applies on next check-in', 'ok');
+          els.clearAllStatus.textContent = 'Queued — applies on next check-in';
+          setTimeout(() => fetchLog(activeLogTab), 6000);
+        } else {
+          els.clearAllStatus.textContent = 'Error: ' + (j.error || j.err || 'failed');
+        }
+      } catch (e) {
+        els.clearAllStatus.textContent = 'Bridge unreachable — nothing cleared';
+      }
+      setTimeout(() => { els.clearAllStatus.textContent = ''; }, 4000);
+    });
+
+    // ---- Dashboard token (bridge-only, see note near authHeaders()) ----
+    els.btnSaveToken.addEventListener('click', () => {
+      setToken(els.tokenInput.value.trim());
+      els.tokenInput.value = '';
+      refreshTokenStatus();
+      log('Dashboard token saved on this browser', 'ok');
+    });
+    refreshTokenStatus();
+  }
+
+  bindButtons();
+  setInterval(setClock, 1000); setClock();
+
+  const POLL_MS = 750;
+  let liveFailCount = 0;
+
+  async function pollCycle(){
+    const ok = await pollLive();
+    if (!ok){
+      liveFailCount++;
+      els.linkDot.classList.remove('live');
+
+      if (!everConnectedLive){
+        els.linkText.textContent = 'Waiting for device…';
+        return; // nothing real has ever arrived - show placeholders, don't fabricate anything
+      }
+
+      // We HAVE talked to a real device before. Freeze the UI, never invent data.
+      els.linkText.textContent = 'Reconnecting…';
+      if (!reconnecting && liveFailCount >= 2){
+        reconnecting = true;
+        els.reconnectBanner.classList.add('show');
+        els.grid.classList.add('stale');
+        log('Lost connection to device — retrying…', 'warn');
+        fireAlert('Pump dashboard: connection lost', 'Lost contact with the ESP32. Retrying automatically.');
+      }
+    } else {
+      liveFailCount = 0;
+    }
+  }
+
+  async function schedulePoll(){
+    await pollCycle();
+    setTimeout(schedulePoll, POLL_MS); // schedule only after the previous request completes
+  }
+  schedulePoll();
+
+  showLogTab(activeLogTab);          // render cached log immediately, then try live
+  setInterval(() => {                // keep whichever tab is actually on screen fresh
+    if (activeMainView === 'plots') showPlotsTab();
+    else fetchLog(activeLogTab);
+  }, 15000);
+})();
+</script>
+
+</body>
+</html>
