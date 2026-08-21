@@ -8,24 +8,11 @@ The device runs completely standalone on its own WiFi hotspot — no internet or
 router required for local use. A small companion cloud service (this repo also
 includes it) lets you check on and control the pump from outside your home network.
 
-<!--
-  Add real screenshots/photos here once available. Suggested layout:
-    docs/images/dashboard-home.png
-    docs/images/dashboard-report.png
-    docs/images/dashboard-plots.png
-    docs/images/hardware-enclosure.png
-    docs/images/hardware-pcb.png
-    docs/images/dwin-panel.png
--->
-
 ## Screenshots & Hardware
 
 | Web Dashboard | Hardware | DWIN HMI Panel |
 |:---:|:---:|:---:|
 | ![Dashboard](docs/images/dashboard-home.png) | ![Hardware](docs/images/hardware-enclosure.png) | ![DWIN Panel](docs/images/dwin-panel.png) |
-
-> Replace the images above by adding your own files to `docs/images/` and updating
-> the paths, or delete rows/columns for anything you don't have photos of yet.
 
 ---
 
@@ -288,5 +275,14 @@ only needed if you want to wipe a log sooner than that.
 
 ## License
 
-_Add your chosen license here (e.g. MIT) and include a `LICENSE` file in the
-repo root._
+This project is licensed under the [MIT License](LICENSE).
+
+Copyright © 2026 [Bharat IoT](https://www.bharatiot.in/)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, subject to the inclusion of the above copyright
+notice in all copies or substantial portions of the Software. See the
+[LICENSE](LICENSE) file for the full text.
