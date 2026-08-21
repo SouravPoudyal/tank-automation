@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1200 1000" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="aD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#2c3e50"/>
+    </marker>
+    <marker id="aP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#c1590f"/>
+    </marker>
+  </defs>
+
+  <style>
+    .ld{fill:none; stroke:#2c3e50; stroke-width:2.25; marker-end:url(#aD);}
+    .lp{fill:none; stroke:#c1590f; stroke-width:2.75; marker-end:url(#aP);}
+    .box{stroke-width:2;}
+    .grp{fill:none; stroke:#b9b6ab; stroke-width:2; stroke-dasharray:6,6; rx:14;}
+    .bg-mcu{fill:#d9e8fb; stroke:#2f6fb0; stroke-width:3;}
+    .bg-pwr{fill:#efeade; stroke:#8a8470;}
+    .bg-flt{fill:#fbdada; stroke:#a02020;}
+    .bg-sns{fill:#ffffff; stroke:#9a9a9a;}
+    .bg-act{fill:#d9e8fb; stroke:#2f6fb0; stroke-width:2.5;}
+    .t-main{font-size:13.5px; fill:#222; text-anchor:middle; dominant-baseline:middle;}
+    .t-bold{font-size:15px; font-weight:700; fill:#111; text-anchor:middle; dominant-baseline:middle;}
+    .t-sm{font-size:11px; fill:#555; text-anchor:middle; dominant-baseline:middle;}
+    .t-title{font-size:19px; font-weight:700; fill:#333; text-anchor:middle;}
+    .t-lbl{font-size:10.5px; fill:#666; text-anchor:middle;}
+  </style>
+
+  <rect width="1200" height="1000" fill="#f7f6f2"/>
+
+  <rect x="40" y="160" width="250" height="320" class="grp"/>
+  <text x="165" y="140" class="t-title">Inputs &amp; Sensors</text>
+  <text x="165" y="505" class="t-lbl" style="font-size:11px;">Digital GPIO to MCU</text>
+
+  <rect x="910" y="160" width="250" height="320" class="grp"/>
+  <text x="1035" y="140" class="t-title">Outputs &amp; Indicators</text>
+  <text x="1035" y="505" class="t-lbl" style="font-size:11px;">I2C and GPIO from MCU</text>
+
+  <rect x="150" y="570" width="900" height="380" class="grp"/>
+  <text x="600" y="975" class="t-title" style="font-size:16px;">Power, Relay &amp; Pump Cluster — PZEM monitors load for dry-run protection</text>
+
+  <g transform="translate(900,30)">
+    <rect x="0" y="0" width="260" height="65" rx="10" fill="#ffffff" stroke="#e0ddd3"/>
+    <line x1="13" y1="22" x2="46" y2="22" class="lp"/><text x="116" y="26" class="t-sm" text-anchor="start">Power / AC Load</text>
+    <line x1="14" y1="46" x2="46" y2="46" class="ld"/><text x="116" y="50" class="t-sm" text-anchor="start">Digital / GPIO / UART</text>
+  </g>
+
+  <rect x="505" y="240" width="190" height="180" rx="8" class="box bg-mcu"/>
+  <text x="600" y="320" class="t-bold">MCU — ESP32</text>
+  <text x="600" y="342" class="t-sm">Main Controller</text>
+
+  <rect x="70" y="200" width="190" height="55" rx="8" class="box bg-sns"/>
+  <text x="165" y="222" class="t-main">Level Sensor L1</text>
+  <text x="165" y="240" class="t-sm">High (Full) - GPIO 26</text>
+
+  <rect x="70" y="290" width="190" height="55" rx="8" class="box bg-sns"/>
+  <text x="165" y="312" class="t-main">Level Sensor L2</text>
+  <text x="165" y="330" class="t-sm">Low (Empty) - GPIO 27</text>
+
+  <rect x="70" y="380" width="190" height="55" rx="8" class="box bg-flt"/>
+  <text x="165" y="402" class="t-main">Manual Button</text>
+  <text x="165" y="420" class="t-sm">Start / Stop - GPIO 15</text>
+
+  <rect x="940" y="200" width="190" height="55" rx="8" class="box bg-pwr"/>
+  <text x="1035" y="222" class="t-main">SSD1306 OLED</text>
+  <text x="1035" y="240" class="t-sm">I2C Display</text>
+
+  <rect x="940" y="290" width="190" height="55" rx="8" class="box bg-flt"/>
+  <text x="1035" y="312" class="t-main">Buzzer</text>
+  <text x="1035" y="330" class="t-sm">Alarms - GPIO 25</text>
+
+  <rect x="940" y="380" width="190" height="55" rx="8" class="box bg-sns"/>
+  <text x="1035" y="402" class="t-main">RGB LED</text>
+  <text x="1035" y="420" class="t-sm">Status - GPIO 33, 4, 13</text>
+
+
+  <rect x="190" y="620" width="160" height="55" rx="8" class="box bg-pwr"/>
+  <text x="270" y="642" class="t-main">AC Mains 230V</text>
+  <text x="270" y="660" class="t-sm">Input</text>
+
+  <rect x="190" y="710" width="160" height="65" rx="8" class="box bg-pwr"/>
+  <text x="270" y="734" class="t-bold">AC-DC PSU</text>
+  <text x="270" y="754" class="t-sm">5V / 12V DC</text>
+
+  <rect x="190" y="810" width="160" height="65" rx="8" class="box bg-pwr"/>
+  <text x="270" y="834" class="t-bold">3.3V Logic Reg</text>
+  <text x="270" y="854" class="t-sm">to MCU VCC</text>
+
+  <rect x="520" y="710" width="160" height="65" rx="8" class="box bg-pwr"/>
+  <text x="600" y="732" class="t-bold">Relay Module</text>
+  <text x="600" y="752" class="t-sm">Opto-Isolated</text>
+
+  <rect x="730" y="710" width="160" height="65" rx="8" class="box bg-sns"/>
+  <text x="810" y="732" class="t-bold">PZEM-004T</text>
+  <text x="810" y="752" class="t-sm">Current / Power Monitor</text>
+
+  <circle cx="980" cy="742.5" r="50" class="box bg-act"/>
+  <text x="980" y="736" class="t-bold">Pump 1</text>
+  <text x="980" y="754" class="t-sm">AC Load</text>
+
+  <path class="ld" d="M260,227.5 L400,227.5 L400,280 L505,280"/>
+  <path class="ld" d="M260,317.5 L380,317.5 L380,330 L505,330"/>
+  <path class="ld" d="M260,407.5 L400,407.5 L400,380 L505,380"/>
+
+  <path class="ld" d="M695,280 L800,280 L800,227.5 L940,227.5"/>
+  <path class="ld" d="M695,330 L820,330 L820,317.5 L940,317.5"/>
+  <path class="ld" d="M695,380 L800,380 L800,407.5 L940,407.5"/>
+
+  <path class="lp" d="M270,675 L270,710"/>
+  <path class="lp" d="M270,775 L270,810"/>
+  <path class="lp" d="M350,842.5 L460,842.5 L460,400 L505,400"/>
+  <path class="lp" d="M350,742.5 L520,742.5"/>
+
+  <path class="ld" d="M600,420 L600,710"/>
+
+  <path class="lp" d="M680,742.5 L730,742.5"/>
+  <path class="lp" d="M890,742.5 L930,742.5"/>
+
+  <path class="ld" d="M810,710 L810,470 L650,470 L650,420"/>
+
+  <text x="470" y="445" class="t-lbl">3.3V VCC</text>
+  <text x="560" y="550" class="t-lbl">GPIO 32 (Control)</text>
+  <text x="730" y="460" class="t-lbl">Serial2 (UART)</text>
+  <text x="705" y="730" class="t-lbl">Load</text>
+  <text x="910" y="730" class="t-lbl">Load</text>
+
+</svg>

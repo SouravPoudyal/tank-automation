@@ -113,7 +113,7 @@ water pump:
 
 ```
 .
-├── BHARAT_IOT_pump_control_curve_9.ino   # Main firmware: pump control, sensors,
+├── BHARAT_IOT_pump_control.ino   # Main firmware: pump control, sensors,
 │                                          # local web server, dashboard, logging
 ├── cloud_bridge.ino                       # Companion firmware tab: joins home WiFi,
 │                                          # checks in with the cloud bridge, mirrors logs
@@ -138,8 +138,9 @@ water pump:
 | Level sensor(s) | Tank-full / dry detection |
 | *(Optional)* DWIN HMI touch panel | Local touchscreen control, no phone needed |
 
-> Add wiring diagrams / schematics here, or link to a `hardware/` folder if you
-> have KiCad/Eagle files, BOM, or enclosure photos.
+### Block Diagram
+
+![Block Diagram](docs/images/block-diagram.svg)
 
 ## Getting Started
 
