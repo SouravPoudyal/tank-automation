@@ -192,16 +192,13 @@ To reach your pump's dashboard from outside your home network:
 
 ### 3. Optional: DWIN HMI Panel
 
-*(Fill in with your specific DWIN model, wiring, and firmware/project files.)*
-
 A DWIN touchscreen panel can be wired to the ESP32 (typically over UART) to
 give a local, always-on physical control panel — useful for control near the
 pump itself without needing a phone or laptop nearby.
 
-- **Model:** _add your DWIN model number here_
-- **Connection:** _e.g. UART TX/RX pins used_
-- **DWIN project file:** _link/path if included in this repo_
-- **What it shows/controls:** _e.g. pump status, start/stop, threshold_
+- **Model:** DWIN DMG10600C070_03WTC
+- **Connection:** UART 
+- **What it shows/controls:** pump status, start/stop, threshold
 
 ## Web Dashboard
 
