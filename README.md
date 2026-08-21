@@ -159,7 +159,7 @@ water pump:
 
 **Steps:**
 
-1. Open `BHARAT_IOT_pump_control_curve_9.ino` in the Arduino IDE.
+1. Open `BHARAT_IOT_pump_control.ino` in the Arduino IDE.
 2. If you want remote access, also add `cloud_bridge.ino` as a second tab in the
    same sketch folder (see [below](#2-optional-remote-access-via-cloud-bridge)).
 3. Set `AP_SSID` / `AP_PASSWORD` near the top of the main sketch to whatever
